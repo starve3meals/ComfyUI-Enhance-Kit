@@ -1,23 +1,15 @@
 .enhance-kit-resources {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 5px;
     flex: 0 1 auto;
     min-width: 0;
-    max-width: min(52vw, 760px);
+    max-width: min(42vw, 360px);
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 3px 6px;
-    border: 1px solid var(--border-color, #555);
-    border-radius: 5px;
-    background: var(--comfy-menu-bg, #222);
-    color: var(--input-text, #ddd);
-    font-size: 11px;
-    line-height: 1.5;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
     pointer-events: auto;
     scrollbar-width: thin;
+    font-variant-numeric: tabular-nums;
 }
 
 .enhance-kit-resources[hidden],
@@ -26,37 +18,66 @@
 }
 
 .enhance-kit-resource {
-    display: flex;
-    align-items: baseline;
-    flex: 0 0 auto;
-    gap: 4px;
+    position: relative;
+    flex: 0 0 60px;
+    height: 30px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: #282828;
+    color: #f4f4f4;
+    text-shadow: 0 1px 2px #000b;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.enhance-kit-resource-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    background: var(--resource-color);
+    box-shadow: inset 2px 2px 10px #0003;
+    transition: width 0.3s ease, background-color 0.3s ease;
+    pointer-events: none;
+}
+
+.enhance-kit-resource[data-metric="cpu"] { --resource-color: #0aa015; }
+.enhance-kit-resource[data-metric="memory"] { --resource-color: #07630d; }
+.enhance-kit-resource[data-metric="gpu"] { --resource-color: #0c86f4; }
+.enhance-kit-resource[data-metric="vram"] { --resource-color: #176ec7; }
+
+.enhance-kit-resource-label,
+.enhance-kit-resource-value {
+    position: absolute;
+    z-index: 1;
+    line-height: 1;
 }
 
 .enhance-kit-resource-label {
-    opacity: 0.7;
+    left: 3px;
+    bottom: 3px;
+    font-size: 10px;
+    font-weight: 400;
 }
 
 .enhance-kit-resource-value {
-    display: inline-block;
-    min-width: 5.3ch;
-    text-align: right;
+    top: 3px;
+    right: 3px;
+    font-size: 11px;
+    font-weight: 500;
 }
 
-.enhance-kit-resource[data-metric="memory"] .enhance-kit-resource-value,
-.enhance-kit-resource[data-metric="vram"] .enhance-kit-resource-value {
-    min-width: 21ch;
+.enhance-kit-resource[data-available="false"] .enhance-kit-resource-value {
+    opacity: 0.65;
 }
 
 @media (max-width: 960px) {
-    .enhance-kit-resources {
-        max-width: 38vw;
-        gap: 8px;
-    }
+    .enhance-kit-resources { max-width: 38vw; }
 }
 
 @media (max-width: 600px) {
-    .enhance-kit-resources {
-        max-width: 28vw;
-        padding-inline: 4px;
-    }
+    .enhance-kit-resources { max-width: 28vw; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .enhance-kit-resource-fill { transition: none; }
 }

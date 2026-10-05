@@ -31,12 +31,14 @@ New-Item -ItemType Junction -Path D:\ComfyUI\custom_nodes\ComfyUI-Enhance-Kit -T
 | 设置 | 默认值 | 行为 |
 | --- | --- | --- |
 | 显示 CPU 利用率 | 开启 | 主机整体 CPU 利用率 |
-| 显示内存占用 | 开启 | 占用率与已用／总量 |
+| 显示内存占用 | 开启 | 占用率；悬浮查看已用／总量 |
 | 显示 GPU 利用率 | 开启 | 所选 GPU 整卡利用率 |
 | 显示 GPU 温度 | 开启 | 所选 GPU 摄氏温度 |
-| 显示显存占用 | 开启 | 占用率与已用／总量 |
+| 显示显存占用 | 开启 | 占用率；悬浮查看已用／总量 |
 | 刷新间隔 | 1 秒 | 0 关闭监控；设置由 ComfyUI 保存 |
 | 监控 GPU | 自动 | 首张可用 NVIDIA GPU，或实际枚举的指定设备 |
+
+资源条外观参考 [ComfyUI-Crystools](https://github.com/crystian/ComfyUI-Crystools/blob/main/web/monitor.css)：标签左下、读数右上，背景填充随数值变化。温度使用 0–100°C 的显示色阶，实际温度读数不裁剪。
 
 全部指标关闭、页面隐藏、Focus Mode 隐藏菜单或禁用顶部菜单时，暂停请求；恢复显示后重新获取数值。窄窗口可在资源条内横向滚动，悬浮每项可查看完整读数及设备名称。
 

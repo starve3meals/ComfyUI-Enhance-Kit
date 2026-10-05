@@ -6,8 +6,8 @@ const metrics = [
     { key: "cpu", setting: "ShowCPU", label: "CPU", name: "CPU 利用率" },
     { key: "memory", setting: "ShowMemory", label: "RAM", name: "内存占用" },
     { key: "gpu", setting: "ShowGPU", label: "GPU", name: "GPU 利用率" },
-    { key: "temperature", setting: "ShowTemperature", label: "GPU温度", name: "GPU 温度" },
     { key: "vram", setting: "ShowVRAM", label: "VRAM", name: "显存占用" },
+    { key: "temperature", setting: "ShowTemperature", label: "GPU温度", name: "GPU 温度" },
 ];
 const legacySelector = '[data-testid="legacy-topbar-container"]';
 const unavailable = "不可用";
@@ -59,17 +59,34 @@ function render() {
         : snapshot?.gpus?.find((item) => item.index === selected);
     const values = {
         cpu: snapshot ? (samplingCPU && snapshot.cpu?.utilization_percent === null ? "采样中" : percent(snapshot.cpu?.utilization_percent)) : unavailable,
-        memory: snapshot ? capacity(snapshot.memory) : unavailable,
+        memory: percent(snapshot?.memory?.utilization_percent),
         gpu: percent(gpu?.utilization_percent),
         temperature: Number.isFinite(gpu?.temperature_c) ? `${gpu.temperature_c.toFixed(0)}°C` : unavailable,
+        vram: percent(gpu?.memory?.utilization_percent),
+    };
+    const details = {
+        memory: snapshot ? capacity(snapshot.memory) : unavailable,
         vram: gpu ? capacity(gpu.memory) : unavailable,
+    };
+    const levels = {
+        cpu: snapshot?.cpu?.utilization_percent,
+        memory: snapshot?.memory?.utilization_percent,
+        gpu: gpu?.utilization_percent,
+        vram: gpu?.memory?.utilization_percent,
+        temperature: gpu?.temperature_c,
     };
     for (const metric of metrics) {
         const field = fields[metric.key];
         const value = values[metric.key];
         if (field.value.textContent !== value) field.value.textContent = value;
+        const level = levels[metric.key];
+        const width = Number.isFinite(level) ? Math.min(100, Math.max(0, level)) : 0;
+        field.fill.style.width = `${width}%`;
+        field.element.dataset.available = String(Number.isFinite(level));
+        // 温度沿用参考样式的 0–100°C 色阶；读数本身不裁剪。
+        if (metric.key === "temperature") field.fill.style.backgroundColor = `color-mix(in srgb, #ff0000 ${width}%, #00ff00)`;
         const device = ["gpu", "temperature", "vram"].includes(metric.key) && gpu ? `${gpu.name} · ` : "";
-        field.element.title = `${device}${metric.name}: ${value}`;
+        field.element.title = `${device}${metric.name}: ${details[metric.key] ?? value}`;
     }
 }
 
@@ -229,15 +246,18 @@ function setup() {
         const element = document.createElement("div");
         element.className = "enhance-kit-resource";
         element.dataset.metric = metric.key;
+        const fill = document.createElement("span");
+        fill.className = "enhance-kit-resource-fill";
+        fill.setAttribute("aria-hidden", "true");
         const label = document.createElement("span");
         label.className = "enhance-kit-resource-label";
         label.textContent = metric.label;
         const value = document.createElement("span");
         value.className = "enhance-kit-resource-value";
         value.textContent = unavailable;
-        element.append(label, value);
+        element.append(fill, label, value);
         bar.appendChild(element);
-        fields[metric.key] = { element, value };
+        fields[metric.key] = { element, value, fill };
     }
     visibilityObserver = new MutationObserver(updateState);
     mountObserver = new MutationObserver((records) => {

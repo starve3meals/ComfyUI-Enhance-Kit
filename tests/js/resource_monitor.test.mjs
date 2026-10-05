@@ -302,18 +302,21 @@ test('注册设置时的回调早于 setup，仍能按保存的开关首次显�
     assert.equal(h.bar().hidden, false);
 });
 
-test('五项显示正确单位、容量和完整 tooltip，刷新复用原有数值元素', async () => {
+test('五项显示紧凑读数与完整容量 tooltip，刷新复用原有数值元素', async () => {
     const h = await harness();
     await h.setup();
     h.requests[0].respond(snapshot(h.timers.now));
     await settle();
     const value = h.metric('cpu').querySelector('.enhance-kit-resource-value');
     assert.equal(value.textContent, '25.5%');
-    assert.equal(h.metric('memory').querySelector('.enhance-kit-resource-value').textContent, '25.0% 8.0/32.0 GiB');
+    assert.equal(h.metric('memory').querySelector('.enhance-kit-resource-value').textContent, '25.0%');
     assert.equal(h.metric('gpu').querySelector('.enhance-kit-resource-value').textContent, '80.0%');
     assert.equal(h.metric('temperature').querySelector('.enhance-kit-resource-value').textContent, '63°C');
-    assert.equal(h.metric('vram').querySelector('.enhance-kit-resource-value').textContent, '25.0% 6.0/24.0 GiB');
+    assert.equal(h.metric('vram').querySelector('.enhance-kit-resource-value').textContent, '25.0%');
     assert.match(h.metric('vram').title, /GPU A.*6\.0\/24\.0 GiB/);
+    assert.match(h.metric('memory').title, /8\.0\/32\.0 GiB/);
+    assert.equal(h.metric('cpu').querySelector('.enhance-kit-resource-fill').style.width, '25.5%');
+    assert.equal(h.metric('temperature').querySelector('.enhance-kit-resource-fill').style.width, '63%');
     await h.timers.advance(1000);
     h.requests[1].respond(snapshot(h.timers.now, { cpu: { utilization_percent: 50 } }));
     await settle();
@@ -350,8 +353,9 @@ test('单项缺失保持不可用，其他 GPU 数值及 RAM 容量继续显示'
     await settle();
     assert.match(h.metric('gpu').textContent, /不可用/);
     assert.match(h.metric('temperature').textContent, /0°C/);
-    assert.match(h.metric('vram').textContent, /不可用/);
-    assert.match(h.metric('memory').textContent, /不可用.*8\.0\/32\.0 GiB/);
+    assert.match(h.metric('vram').title, /不可用/);
+    assert.match(h.metric('vram').textContent, /25\.0%/);
+    assert.match(h.metric('memory').title, /不可用.*8\.0\/32\.0 GiB/);
 });
 
 test('GPU 设置来自实际列表，选中另一设备立即展示其数值', async () => {
@@ -413,6 +417,7 @@ test('断线与 HTTP 错误清除旧值，恢复后继续显示新读数', async
     h.requests[1].fail();
     await settle();
     assert.match(h.metric('cpu').textContent, /不可用/);
+    assert.equal(h.metric('cpu').querySelector('.enhance-kit-resource-fill').style.width, '0%');
     await h.timers.advance(1000);
     h.requests[2].respond({}, false);
     await settle();
@@ -420,7 +425,7 @@ test('断线与 HTTP 错误清除旧值，恢复后继续显示新读数', async
     await h.timers.advance(1000);
     h.requests[3].respond(snapshot(h.timers.now));
     await settle();
-    assert.match(h.metric('memory').textContent, /25\.0% 8\.0\/32\.0 GiB/);
+    assert.match(h.metric('memory').title, /25\.0% 8\.0\/32\.0 GiB/);
 });
 
 test('关闭后迟到响应不能改动状态或复活定时器，重新开启即时刷新', async () => {
@@ -651,7 +656,7 @@ test('自动模式跳过全部指标不可用的首卡，显示后续可用 GPU'
     await settle();
     assert.match(h.metric('gpu').textContent, /75\.0%/);
     assert.match(h.metric('temperature').textContent, /52°C/);
-    assert.match(h.metric('vram').textContent, /25\.0% 4\.0\/16\.0 GiB/);
+    assert.match(h.metric('vram').title, /25\.0% 4\.0\/16\.0 GiB/);
     assert.match(h.metric('gpu').title, /GPU B/);
     assert.equal(h.app.extensionManager.setting.get(IDs.device), -1);
 });
