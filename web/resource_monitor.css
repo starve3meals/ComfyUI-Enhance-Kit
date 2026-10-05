@@ -1,0 +1,62 @@
+.enhance-kit-resources {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: min(52vw, 760px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 3px 6px;
+    border: 1px solid var(--border-color, #555);
+    border-radius: 5px;
+    background: var(--comfy-menu-bg, #222);
+    color: var(--input-text, #ddd);
+    font-size: 11px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: auto;
+    scrollbar-width: thin;
+}
+
+.enhance-kit-resources[hidden],
+.enhance-kit-resource[hidden] {
+    display: none;
+}
+
+.enhance-kit-resource {
+    display: flex;
+    align-items: baseline;
+    flex: 0 0 auto;
+    gap: 4px;
+}
+
+.enhance-kit-resource-label {
+    opacity: 0.7;
+}
+
+.enhance-kit-resource-value {
+    display: inline-block;
+    min-width: 5.3ch;
+    text-align: right;
+}
+
+.enhance-kit-resource[data-metric="memory"] .enhance-kit-resource-value,
+.enhance-kit-resource[data-metric="vram"] .enhance-kit-resource-value {
+    min-width: 21ch;
+}
+
+@media (max-width: 960px) {
+    .enhance-kit-resources {
+        max-width: 38vw;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 600px) {
+    .enhance-kit-resources {
+        max-width: 28vw;
+        padding-inline: 4px;
+    }
+}

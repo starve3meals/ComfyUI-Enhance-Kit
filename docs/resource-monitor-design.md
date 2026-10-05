@@ -59,7 +59,7 @@ GPU 数据逐项表示可用性：单个驱动指标不支持时，其他可用�
 
 Python 依赖使用 `psutil` 和 `nvidia-ml-py`；ComfyUI 现有 `aiohttp` 用于本地接口。不会另外安装同名 `pynvml` 分发包。本机上述依赖已经核实可用，当前 NVIDIA GPU 的利用率、温度与显存接口已完成读取检查；这些检查仅证明采集来源可用，不等于扩展已经实现。
 
-项目创建前为空目录；现已建立 Git 仓库。设计文档和后续实现使用本地 `feat/resource-monitor` 分支；远程仓库、推送、合并和 Pull Request 不属于当前授权范围。
+项目创建前为空目录；现已建立 Git 仓库。设计文档和后续实现使用本地 `feat/resource-monitor` 分支；用户已于实施阶段追加授权：完成后提交、合并并正常推送到指定 GitHub 仓库，保留远程既有许可证和历史；未授权创建 Pull Request。
 
 ## 验收标准
 
