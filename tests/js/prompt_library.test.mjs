@@ -96,3 +96,16 @@ test('subgraph node and restored empty library retain only stable references',as
   assert.equal(widget(node,'提示词').options.getOptionLabel('portrait'),'提示词已删除，请重新选择');
   await assert.rejects(widget(node,'resolved_text').serializeValue());
 });
+
+test('older refresh response or failure cannot undo a saved library',async()=>{
+  for(const failure of [false,true]){
+    const world=await loadLibrary();await world.extension.setup();const node=await world.node();await choose(node);
+    const old=structuredClone(world.library),gate=deferred();world.api.fetchApi=()=>gate.promise;
+    world.window.dispatchEvent(new Event('focus'));
+    world.library.prompts[0].text='已保存的新正文';world.library.revision++;
+    world.module.namespace.refreshPromptLibraryNodes(world.library);
+    if(failure)gate.reject(new Error('旧读取失败'));else gate.resolve(response(old));
+    await new Promise(r=>setImmediate(r));
+    assert.equal(widget(node,'resolved_text').value,'已保存的新正文');
+  }
+});

@@ -1,0 +1,34 @@
+.enhance-kit-prompt-library .comfy-modal-content {
+    width: min(1080px, 94vw);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 20px;
+    color: var(--input-text);
+    background: var(--comfy-menu-bg);
+}
+.enhance-kit-prompt-library h2 { margin: 0 0 8px; font-size: 1.25rem; }
+.enhance-kit-prompt-library p { margin: 8px 0; }
+.enhance-kit-prompt-library .ek-description { opacity: 0.75; }
+.enhance-kit-prompt-library .ek-status { min-height: 1.5em; }
+.enhance-kit-prompt-library .ek-columns { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(170px, 1fr) minmax(300px, 2fr); gap: 18px; }
+.enhance-kit-prompt-library .ek-list,
+.enhance-kit-prompt-library .ek-editor { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.enhance-kit-prompt-library label { font-weight: 600; }
+.enhance-kit-prompt-library input,
+.enhance-kit-prompt-library select,
+.enhance-kit-prompt-library textarea,
+.enhance-kit-prompt-library button { font: inherit; color: var(--input-text); background: var(--comfy-input-bg); border: 1px solid var(--border-color); border-radius: 5px; padding: 8px; min-width: 0; }
+.enhance-kit-prompt-library select[size] { width: 100%; flex: 1; min-height: 180px; }
+.enhance-kit-prompt-library textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 180px; }
+.enhance-kit-prompt-library button { cursor: pointer; }
+.enhance-kit-prompt-library button:hover:enabled { background: var(--comfy-menu-secondary-bg); }
+.enhance-kit-prompt-library button:disabled { opacity: 0.45; cursor: default; }
+.enhance-kit-prompt-library .ek-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.enhance-kit-prompt-library .ek-question { margin-top: 12px; border: 1px solid var(--border-color); padding: 12px; }
+.enhance-kit-prompt-library .ek-question button { margin-right: 8px; }
+.enhance-kit-prompt-library pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+@media (max-width: 760px) {
+    .enhance-kit-prompt-library .ek-columns { grid-template-columns: 1fr 1fr; }
+    .enhance-kit-prompt-library .ek-editor { grid-column: 1 / -1; }
+    .enhance-kit-prompt-library .comfy-modal-content { padding: 12px; }
+}

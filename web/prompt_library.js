@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { readLibrary, resolvePrompt } from "./prompt_library_client.js";
+import { openPromptLibraryManager } from "./prompt_library_manager.js";
 
 const states = new WeakMap();
 const active = new Set();
@@ -67,6 +68,7 @@ async function preview(state) {
 
 /** 用已保存的当前用户库刷新节点；按 ID 跟随移动，删除不替换选中条目。 */
 export function refreshPromptLibraryNodes(updated) {
+    refreshGeneration++;
     library = updated;
     libraryOwner = api.user;
     for (const state of active) {
@@ -100,6 +102,10 @@ async function refresh() {
 app.registerExtension({
     name: "EnhanceKit.PromptLibrary",
     async setup() {
+        const style = document.createElement("link");
+        style.rel = "stylesheet";
+        style.href = new URL("./prompt_library.css", import.meta.url).href;
+        document.head.append(style);
         window.addEventListener("focus", () => { loading = refresh(); });
         loading = refresh();
         await loading;
@@ -129,6 +135,12 @@ app.registerExtension({
         }, { values: [], serialize: false,
             getOptionLabel: (id) => library.prompts.find((item) => item.id === id)?.title || (id ? "提示词已删除，请重新选择" : "请选择提示词") });
         state.category.serialize = state.prompt.serialize = false;
+        const manage = node.addWidget("button", "管理提示词库", null, () => {
+            const selected = node.properties.enhanceKitPromptLibrary;
+            openPromptLibraryManager({ categoryId: selected.category_id, promptId: selected.prompt_id,
+                onSaved: refreshPromptLibraryNodes }).catch((error) => app.extensionManager.dialog.alert(error.message));
+        }, { serialize: false });
+        manage.serialize = false;
         node.widgets = [state.category, state.prompt, ...node.widgets.filter((widget) => widget !== state.category && widget !== state.prompt)];
         text.serializeValue = async () => {
             const context = capture(state);

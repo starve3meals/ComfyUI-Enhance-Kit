@@ -12,10 +12,26 @@ export function deferred() {
   return {promise,resolve,reject};
 }
 
+class Element extends EventTarget {
+  constructor(tag) { super(); this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={};this.value='';this.textContent='';this.hidden=false;this.className='';this.classList={add:(name)=>{this.className+=' '+name;}}; }
+  append(...children) { this.children.push(...children);for(const child of children)child.parent=this; }
+  replaceChildren(...children) { this.children=[];this.append(...children); }
+  remove() { if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);this.removed=true; }
+  setAttribute(key,value) { this[key]=value; }
+  focus() { this.focused=true; }
+  querySelector(selector) { return this.querySelectorAll(selector)[0]??null; }
+  querySelectorAll(selector) { const nodes=this.children.flatMap(c=>[c,...c.querySelectorAll('*')]);if(selector==='*')return nodes;const action=selector.match(/^\[data-action="(.*)"\]$/)?.[1];return nodes.filter(c=>action?c.dataset.action===action:c.tagName.toLowerCase()===selector); }
+}
+
 export async function loadLibrary({entry='prompt_library.js', fetchApi}={}) {
   const world = {library:fixture(), requests:[], extensions:[], alerts:[]};
   const window = new EventTarget();
-  const document = {head:{append(){}}, createElement:() => ({})};
+  const document = {head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag)};
+  window.comfyAPI={ui:{ComfyDialog:class {
+    constructor(){this.element=new Element('div');world.dialog=this;document.body.append(this.element);}
+    show(content){this.element.append(content);}
+    close(){this.closed=true;}
+  }}};
   const app = {rootGraph:{}, graph:null, registerExtension:e=>world.extensions.push(e)};
   app.graph=app.rootGraph;
   const api = {user:'a', fetchApi:fetchApi ?? (async (path,options={}) => {
