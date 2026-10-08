@@ -75,15 +75,17 @@ export async function loadLoraManager(files = ['a.safetensors', 'sub/b.safetenso
   assert.ok(world.extension, 'LoRA Manager extension must register its real node lifecycle');
   world.document = document; world.app = app;
   world.definition = async options => world.extension.beforeRegisterNodeDef(function Node() {}, {
-    name: 'EnhanceKitLoraManager', input: { required: { model: ['MODEL'], loras: ['STRING', { default: '{"schema_version":1,"items":[]}', enhanceKitLoraOptions: options }] } },
+    name: 'EnhanceKitLoraManager', input: { required: { model: ['MODEL'], loras: ['STRING', { default: '{"schema_version":1,"items":[]}', enhanceKitLoraOptions: options }] }, optional: { clip: ['CLIP'] } }, output: ['MODEL', 'CLIP'], output_name: ['model', 'clip'],
   }, app);
   await world.definition(files);
   await world.extension.setup?.();
-  world.node = async ({ value = '{"schema_version":1,"items":[]}', size = [320, 200], id = world.nextNodeId++, ownerGraph = graph, generatedInput = false } = {}) => {
-    const node = { id, comfyClass: 'EnhanceKitLoraManager', graph: ownerGraph, size, inputs: [{ name: 'model' }], outputs: [{ name: 'model' }], widgets: [], dirty: 0,
+  world.node = async ({ value = '{"schema_version":1,"items":[]}', size = [320, 200], id = world.nextNodeId++, ownerGraph = graph, generatedInput = false, legacyPorts = false } = {}) => {
+    const node = { id, comfyClass: 'EnhanceKitLoraManager', graph: ownerGraph, size, inputs: [{ name: 'model', type: 'MODEL', link: null }], outputs: [{ name: 'model', type: 'MODEL', links: null }], widgets: [], dirty: 0,
       setSize(next) { this.size = [...next]; }, setDirtyCanvas() { this.dirty++; },
       removeInput(index) { this.inputs.splice(index, 1); },
-      configure(info) { this.inputs = structuredClone(info.inputs); this.widgets.find(widget => widget.name === 'loras').value = info.widgets_values[0]; this.onConfigure?.(info); },
+      addInput(name, type) { const input = { name, type, link: null }; this.inputs.push(input); return input; },
+      addOutput(name, type) { const output = { name, type, links: null }; this.outputs.push(output); return output; },
+      configure(info) { if (info.inputs) this.inputs = structuredClone(info.inputs); if (info.outputs) this.outputs = structuredClone(info.outputs); this.widgets.find(widget => widget.name === 'loras').value = info.widgets_values[0]; this.onConfigure?.(info); },
       computeSize() { return [240, 64 + this.widgets.reduce((sum, widget) => sum + (widget.options.getMinHeight?.() ?? 24), 0)]; },
       removeWidget(widget) { const id = widget.widgetId; widget.onRemove?.(); world.widgetValues.delete(id); this.widgets.splice(this.widgets.indexOf(widget), 1); },
       addDOMWidget(name, type, element, options) {
@@ -96,6 +98,7 @@ export async function loadLoraManager(files = ['a.safetensors', 'sub/b.safetenso
         return widget;
       },
     };
+    if (!legacyPorts) { node.addInput('clip', 'CLIP'); node.addOutput('clip', 'CLIP'); }
     const original = node.addDOMWidget('loras', 'customtext', document.createElement('textarea'), { getValue: () => value, setValue: next => { value = next; }, socketless: !generatedInput, dynamicPrompts: false });
     if (generatedInput) node.inputs.push({ name: 'loras', type: 'STRING', link: null, widget: { name: 'loras' } });
     const remove = original.onRemove;

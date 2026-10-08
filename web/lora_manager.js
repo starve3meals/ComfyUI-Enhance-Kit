@@ -12,10 +12,13 @@ function parseConfig(raw) {
     for (const item of config.items) {
         if (!item || typeof item !== "object" || typeof item.name !== "string" || typeof item.enabled !== "boolean"
             || typeof item.strength !== "number" || !Number.isFinite(item.strength)) {
-            throw new Error("每项必须包含文件名、启用开关和有限数值强度。");
+            throw new Error("每项必须包含文件名、启用开关和有限数值模型强度。");
+        }
+        if (item.clip_strength !== undefined && (typeof item.clip_strength !== "number" || !Number.isFinite(item.clip_strength))) {
+            throw new Error("CLIP 强度必须为有限数值。");
         }
     }
-    return config.items.map(({ name, enabled, strength }) => ({ name, enabled, strength }));
+    return config.items.map(({ name, enabled, strength, clip_strength = 0 }) => ({ name, enabled, strength, clip_strength }));
 }
 
 function element(tag, className, action) {
@@ -35,7 +38,7 @@ function button(action, text, title) {
 }
 
 function height(state) {
-    return state.error ? 220 : Math.min(420, 84 + Math.max(state.items.length, 1) * 42);
+    return state.error ? 220 : Math.min(420, 112 + Math.max(state.items.length, 1) * 42);
 }
 
 function resize(state) {
@@ -44,7 +47,7 @@ function resize(state) {
     state.root.style.height = widgetHeight;
     state.root.style.maxHeight = widgetHeight;
     state.root.style.minHeight = "0px";
-    node.setSize([Math.max(node.size[0], 420), node.computeSize()[1]]);
+    node.setSize([Math.max(node.size[0], 560), node.computeSize()[1]]);
     node.setDirtyCanvas(true, true);
 }
 
@@ -68,6 +71,12 @@ function removeLoraSocket(node) {
     // 官方 STRING factory 未传递 socketless，创建和配置恢复后需移除它生成的同名插槽。
     const index = node.inputs.findIndex(input => input.name === "loras" && input.type === "STRING" && input.widget?.name === "loras");
     if (index !== -1) node.removeInput(index);
+}
+
+function restoreClipSockets(node) {
+    // 旧工作流 configure 会覆盖新定义的插槽；仅追加缺失端口，保留 MODEL 第 0 输出和既有连线。
+    if (!node.inputs.some(input => input.name === "clip" && input.type === "CLIP")) node.addInput("clip", "CLIP");
+    if (!node.outputs.some(output => output.name === "clip" && output.type === "CLIP")) node.addOutput("clip", "CLIP");
 }
 
 function status(state) {
@@ -158,23 +167,27 @@ function createRow(state, item, index) {
         select.title = item.name || "请选择 LoRA 文件";
         root.dataset.missing = String(Boolean(item.name && !files.includes(item.name)));
     }));
-    const strength = element("input", "", "strength");
-    strength.type = "number";
-    strength.min = "-100";
-    strength.max = "100";
-    strength.step = "0.01";
-    strength.value = String(item.strength);
-    strength.title = "模型强度（步长 0.01）";
-    strength.setAttribute("aria-label", `第 ${index + 1} 项模型强度`);
-    strength.addEventListener("input", () => {
-        const value = strength.value.trim() === "" ? NaN : Number(strength.value);
-        strength.setCustomValidity(Number.isFinite(value) ? "" : "请输入有限数值。");
-        if (Number.isFinite(value) && value !== item.strength) change(state, () => { item.strength = value; });
-    });
-    strength.addEventListener("blur", () => {
-        strength.value = String(item.strength);
-        strength.setCustomValidity("");
-    });
+    const strengths = [];
+    for (const [field, title] of [["strength", "模型"], ["clip_strength", "CLIP"]]) {
+        const strength = element("input", "", field);
+        strength.type = "number";
+        strength.min = "-100";
+        strength.max = "100";
+        strength.step = "0.01";
+        strength.value = String(item[field]);
+        strength.title = `${title}强度（步长 0.01）`;
+        strength.setAttribute("aria-label", `第 ${index + 1} 项${title}强度`);
+        strength.addEventListener("input", () => {
+            const value = strength.value.trim() === "" ? NaN : Number(strength.value);
+            strength.setCustomValidity(Number.isFinite(value) ? "" : "请输入有限数值。");
+            if (Number.isFinite(value) && value !== item[field]) change(state, () => { item[field] = value; });
+        });
+        strength.addEventListener("blur", () => {
+            strength.value = String(item[field]);
+            strength.setCustomValidity("");
+        });
+        strengths.push(strength);
+    }
     const arrows = element("div", "enhance-kit-lora-moves");
     const up = button("up", "↑", `上移第 ${index + 1} 项 LoRA`);
     const down = button("down", "↓", `下移第 ${index + 1} 项 LoRA`);
@@ -195,13 +208,14 @@ function createRow(state, item, index) {
         event.stopPropagation();
         if (state.dragIndex !== null) move(state, state.dragIndex, index);
     });
-    root.append(drag, enabled, select, strength, arrows, remove);
+    root.append(drag, enabled, select, ...strengths, arrows, remove);
     return row;
 }
 
 function render(state) {
     state.rows = state.items.map((item, index) => createRow(state, item, index));
-    state.list.replaceChildren(...state.rows.map(row => row.element));
+    state.header.hidden = Boolean(state.error);
+    state.list.replaceChildren(state.header, ...state.rows.map(row => row.element));
     status(state);
     resize(state);
 }
@@ -244,8 +258,16 @@ app.registerExtension({
         const index = node.widgets.indexOf(original);
         const value = original.value;
         removeLoraSocket(node);
+        restoreClipSockets(node);
         const root = element("div", "enhance-kit-lora-manager");
         const list = element("div", "enhance-kit-lora-list");
+        const header = element("div", "enhance-kit-lora-header", "header");
+        header.setAttribute("aria-hidden", "true");
+        for (const title of ["LoRA名称", "模型强度", "CLIP强度"]) {
+            const heading = element("span");
+            heading.textContent = title;
+            header.append(heading);
+        }
         const message = element("div", "enhance-kit-lora-status", "status");
         message.setAttribute("role", "status");
         const repair = element("div", "enhance-kit-lora-repair");
@@ -256,11 +278,11 @@ app.registerExtension({
         repair.append(rawInput, apply);
         const add = button("add", "+ 添加 LoRA", "添加一项 LoRA");
         root.append(list, message, repair, add);
-        const state = { node, root, list, status: message, repair, rawInput, add, items: [], rows: [], raw: value, error: "", dragIndex: null };
+        const state = { node, root, list, header, status: message, repair, rawInput, add, items: [], rows: [], raw: value, error: "", dragIndex: null };
         states.set(node, state);
         active.add(state);
         add.addEventListener("click", () => change(state, () => {
-            state.items.push({ name: files[0] ?? "", enabled: true, strength: 1 });
+            state.items.push({ name: files[0] ?? "", enabled: true, strength: 1, clip_strength: 0 });
         }, true));
         apply.addEventListener("click", () => {
             if (!active.has(state)) return;
@@ -321,6 +343,7 @@ app.registerExtension({
         node.onConfigure = function (...args) {
             const result = configure?.apply(this, args);
             removeLoraSocket(node);
+            restoreClipSockets(node);
             attachElement(state);
             resize(state);
             return result;

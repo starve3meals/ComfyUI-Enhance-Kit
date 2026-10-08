@@ -22,14 +22,26 @@
     overscroll-behavior: contain;
 }
 
+.enhance-kit-lora-header,
 .enhance-kit-lora-row {
     display: grid;
-    grid-template-columns: 20px 20px minmax(0, 1fr) 70px 44px 24px;
+    grid-template-columns: 20px 20px minmax(0, 1fr) 70px 70px 44px 24px;
     align-items: center;
     gap: 4px;
-    min-height: 38px;
     margin-bottom: 4px;
 }
+
+.enhance-kit-lora-row { min-height: 38px; }
+.enhance-kit-lora-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    min-height: 24px;
+    background: var(--comfy-input-bg, var(--bg-color));
+}
+.enhance-kit-lora-header span:nth-child(1) { grid-column: 3; }
+.enhance-kit-lora-header span:nth-child(2) { grid-column: 4; }
+.enhance-kit-lora-header span:nth-child(3) { grid-column: 5; }
 
 .enhance-kit-lora-manager button,
 .enhance-kit-lora-manager select,
@@ -53,7 +65,7 @@
     outline: 2px solid var(--p-primary-color, var(--input-text));
     outline-offset: 1px;
 }
-.enhance-kit-lora-manager select { width: 100%; text-overflow: ellipsis; }
+.enhance-kit-lora-manager select { width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .enhance-kit-lora-manager input[type="number"] { width: 70px; }
 .enhance-kit-lora-manager input[type="checkbox"] { margin: 0; cursor: pointer; }
 .enhance-kit-lora-manager .enhance-kit-lora-drag { cursor: grab; touch-action: none; }

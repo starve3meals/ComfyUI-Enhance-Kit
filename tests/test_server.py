@@ -83,7 +83,9 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.extension.NODE_CLASS_MAPPINGS["EnhanceKitPromptLibrary"].RETURN_TYPES, ("STRING",))
         self.assertIn("EnhanceKitLoraManager", self.extension.NODE_CLASS_MAPPINGS)
         lora_node = self.extension.NODE_CLASS_MAPPINGS["EnhanceKitLoraManager"]
-        self.assertEqual(lora_node.RETURN_TYPES, ("MODEL",))
+        self.assertEqual(lora_node.RETURN_TYPES, ("MODEL", "CLIP"))
+        self.assertEqual(lora_node.RETURN_NAMES, ("model", "clip"))
+        self.assertEqual(lora_node.INPUT_TYPES()["optional"], {"clip": ("CLIP",)})
         self.assertEqual(self.extension.NODE_DISPLAY_NAME_MAPPINGS["EnhanceKitLoraManager"], "LoRA 管理器（EnhanceKit）")
 
     async def test_slow_collection_runs_outside_event_loop(self):

@@ -9,31 +9,32 @@ test('replaces the STRING widget with one serialized JSON entry and disposes the
   assert.equal(widget(node).serializeValue(), widget(node).value);
   assert.equal(world.registry.has(node.original), false);
   assert.equal(world.removals, 1);
-  assert.equal(node.inputs.length, 1);
-  assert.ok(node.size[0] >= 420);
+  assert.equal(node.inputs.length, 2);
+  assert.ok(node.size[0] >= 560);
 });
 
 test('add, independent field edits and delete update execution JSON without sharing duplicate rows', async () => {
   const world = await loadLoraManager(); const node = await world.node();
   click(node, 'add'); click(node, 'add');
-  assert.deepEqual(config(node).items, [{ name: 'a.safetensors', enabled: true, strength: 1 }, { name: 'a.safetensors', enabled: true, strength: 1 }]);
-  edit(node, 'enabled', false, 0); edit(node, 'name', 'sub/b.safetensors', 0); edit(node, 'strength', '-0.75', 0, 'input');
-  assert.deepEqual(config(node).items, [{ name: 'sub/b.safetensors', enabled: false, strength: -0.75 }, { name: 'a.safetensors', enabled: true, strength: 1 }]);
+  assert.deepEqual(config(node).items, [{ name: 'a.safetensors', enabled: true, strength: 1, clip_strength: 0 }, { name: 'a.safetensors', enabled: true, strength: 1, clip_strength: 0 }]);
+  edit(node, 'enabled', false, 0); edit(node, 'name', 'sub/b.safetensors', 0); edit(node, 'strength', '-0.75', 0, 'input'); edit(node, 'clip_strength', '0.5', 0, 'input');
+  assert.deepEqual(config(node).items, [{ name: 'sub/b.safetensors', enabled: false, strength: -0.75, clip_strength: 0.5 }, { name: 'a.safetensors', enabled: true, strength: 1, clip_strength: 0 }]);
   click(node, 'delete', 1);
   assert.equal(config(node).items.length, 1);
   assert.equal(config(node).items[0].enabled, false);
 });
 
-test('finite strength outside advertised range is preserved and ordinary input retains focus and DOM identity', async () => {
+for (const field of ['strength', 'clip_strength']) test(`finite ${field} outside advertised range is preserved and ordinary input retains focus and DOM identity`, async () => {
   const world = await loadLoraManager(); const node = await world.node(); click(node, 'add');
-  const input = control(node, 'strength', 0); input.focus();
-  edit(node, 'strength', '250.125', 0, 'input');
-  assert.equal(config(node).items[0].strength, 250.125);
-  assert.equal(control(node, 'strength', 0), input);
+  const input = control(node, field, 0); assert.ok(input, `${field} input must exist`); input.focus();
+  edit(node, field, '250.125', 0, 'input');
+  assert.equal(config(node).items[0][field], 250.125);
+  assert.equal(config(node).items[0][field === 'strength' ? 'clip_strength' : 'strength'], field === 'strength' ? 0 : 1);
+  assert.equal(control(node, field, 0), input);
   assert.equal(world.document.activeElement, input);
   assert.equal(input.step, '0.01'); assert.equal(input.min, '-100'); assert.equal(input.max, '100');
-  edit(node, 'strength', '', 0, 'input');
-  assert.equal(config(node).items[0].strength, 250.125);
+  edit(node, field, '', 0, 'input');
+  assert.equal(config(node).items[0][field], 250.125);
   assert.ok(input.validationMessage);
   input.dispatchEvent(event('blur'));
   assert.equal(input.value, '250.125');
@@ -42,9 +43,10 @@ test('finite strength outside advertised range is preserved and ordinary input r
 test('move buttons reorder complete rows and publish old and new values at undo boundaries', async () => {
   const world = await loadLoraManager(); const node = await world.node();
   click(node, 'add'); click(node, 'add'); edit(node, 'name', 'sub/b.safetensors', 1); edit(node, 'enabled', false, 1);
+  edit(node, 'strength', '-2', 1, 'input'); edit(node, 'clip_strength', '0.75', 1, 'input');
   const before = widget(node).value; world.changes.length = 0;
   click(node, 'up', 1);
-  assert.deepEqual(config(node).items, [{ name: 'sub/b.safetensors', enabled: false, strength: 1 }, { name: 'a.safetensors', enabled: true, strength: 1 }]);
+  assert.deepEqual(config(node).items, [{ name: 'sub/b.safetensors', enabled: false, strength: -2, clip_strength: 0.75 }, { name: 'a.safetensors', enabled: true, strength: 1, clip_strength: 0 }]);
   assert.deepEqual(world.changes, [{ phase: 'before', value: before }, { phase: 'after', value: widget(node).value }]);
   click(node, 'down', 0);
   assert.equal(widget(node).value, before);
@@ -55,10 +57,12 @@ test('move buttons reorder complete rows and publish old and new values at undo 
 test('drag handle drop uses local row order and rejects external drops without changing JSON', async () => {
   const world = await loadLoraManager(); const node = await world.node();
   click(node, 'add'); click(node, 'add'); edit(node, 'name', 'sub/b.safetensors', 1);
+  edit(node, 'strength', '0', 1, 'input'); edit(node, 'clip_strength', '-1.5', 1, 'input');
   const transfer = { effectAllowed: '', dropEffect: '', setData() {} };
   const start = event('dragstart', { dataTransfer: transfer }); control(node, 'drag', 1).dispatchEvent(start);
   const drop = event('drop', { dataTransfer: transfer }); rows(node)[0].dispatchEvent(drop);
   assert.deepEqual(config(node).items.map(item => item.name), ['sub/b.safetensors', 'a.safetensors']);
+  assert.deepEqual(config(node).items.map(item => [item.strength, item.clip_strength]), [[0, -1.5], [1, 0]]);
   assert.equal(start.stopped, true); assert.equal(drop.stopped, true); assert.equal(drop.defaultPrevented, true);
   const before = widget(node).value;
   widget(node).element.dispatchEvent(event('drop', { dataTransfer: { files: ['arbitrary.safetensors'] } }));
@@ -66,27 +70,34 @@ test('drag handle drop uses local row order and rejects external drops without c
 });
 
 test('save, reload and copied nodes preserve exact configuration while editing only their own state', async () => {
-  const world = await loadLoraManager(); const first = await world.node(); click(first, 'add'); edit(first, 'strength', '-2', 0, 'input');
+  const world = await loadLoraManager(); const first = await world.node(); click(first, 'add'); edit(first, 'strength', '-2', 0, 'input'); edit(first, 'clip_strength', '-250.125', 0, 'input');
   const saved = widget(first).serializeValue();
   const second = await world.node({ value: saved });
   assert.equal(widget(second).value, saved);
   edit(second, 'enabled', false, 0);
   assert.equal(config(first).items[0].enabled, true);
   assert.equal(config(second).items[0].enabled, false);
+  edit(second, 'clip_strength', '3.5', 0, 'input');
+  assert.equal(config(first).items[0].clip_strength, -250.125);
+  assert.equal(config(second).items[0].clip_strength, 3.5);
   widget(second).value = saved;
   assert.equal(control(second, 'enabled', 0).checked, true);
   assert.equal(control(second, 'strength', 0).value, '-2');
+  assert.equal(control(second, 'clip_strength', 0).value, '-250.125');
+  assert.equal(second.outputs[1].type, 'CLIP');
 });
 
 for (const version of ['1.0', '1e0']) test(`restore canonicalizes schema version ${version} for Python without changing row values`, async () => {
   const world = await loadLoraManager();
-  const expected = '{"schema_version":1,"items":[{"name":"sub/b.safetensors","enabled":false,"strength":-250.125},{"name":"a.safetensors","enabled":true,"strength":0.25}]}';
-  const raw = ` { "schema_version": ${version}, "items": [{"name":"sub/b.safetensors","enabled":false,"strength":-250.125},{"name":"a.safetensors","enabled":true,"strength":2.5e-1}] } `;
+  const expected = '{"schema_version":1,"items":[{"name":"sub/b.safetensors","enabled":false,"strength":-250.125,"clip_strength":0},{"name":"a.safetensors","enabled":true,"strength":0.25,"clip_strength":-0.5}]}';
+  const raw = ` { "schema_version": ${version}, "items": [{"name":"sub/b.safetensors","enabled":false,"strength":-250.125},{"name":"a.safetensors","enabled":true,"strength":2.5e-1,"clip_strength":-5e-1}] } `;
   const node = await world.node({ value: raw });
   assert.equal(widget(node).value, expected);
   assert.equal(widget(node).serializeValue(), expected);
   assert.equal(control(node, 'enabled', 0).checked, false);
   assert.equal(control(node, 'strength', 0).value, '-250.125');
+  assert.equal(control(node, 'clip_strength', 0).value, '0');
+  assert.equal(control(node, 'clip_strength', 1).value, '-0.5');
   assert.equal(control(node, 'name', 1).value, 'a.safetensors');
   widget(node).value = raw;
   assert.equal(widget(node).value, expected);
@@ -141,7 +152,7 @@ test('no files still allows adding an editable empty row, and list height is bou
   assert.ok(control(node, 'status').textContent.includes('暂无'));
   for (let index = 0; index < 30; index++) click(node, 'add');
   assert.equal(config(node).items.length, 30); assert.equal(config(node).items[0].name, '');
-  assert.equal(node.size[0], 650); assert.ok(widget(node).options.getHeight() <= 460);
+  assert.equal(node.size[0], 650); assert.ok(widget(node).options.getHeight() <= 420);
   const height = node.size[1];
   for (let index = 0; index < 29; index++) click(node, 'delete', 0);
   assert.ok(node.size[1] < height); assert.equal(node.size[0], 650);
@@ -150,8 +161,8 @@ test('no files still allows adding an editable empty row, and list height is bou
 test('the mounted DOM element carries bounded height and shrinks again when rows are removed', async () => {
   const world = await loadLoraManager(); const node = await world.node({ size: [650, 200] });
   const root = widget(node).element;
-  assert.equal(root.style.height, '126px');
-  assert.equal(root.style.maxHeight, '126px');
+  assert.equal(root.style.height, '154px');
+  assert.equal(root.style.maxHeight, '154px');
   assert.equal(root.style.minHeight, '0px');
   for (let index = 0; index < 20; index++) click(node, 'add');
   assert.equal(config(node).items.length, 20);
@@ -159,8 +170,8 @@ test('the mounted DOM element carries bounded height and shrinks again when rows
   assert.equal(root.style.maxHeight, '420px');
   assert.equal(widget(node).options.getHeight(), 420);
   for (let index = 0; index < 19; index++) click(node, 'delete', 0);
-  assert.equal(root.style.height, '126px');
-  assert.equal(root.style.maxHeight, '126px');
+  assert.equal(root.style.height, '154px');
+  assert.equal(root.style.maxHeight, '154px');
   widget(node).value = '{broken';
   assert.equal(root.style.height, '220px');
   assert.equal(root.style.maxHeight, '220px');
@@ -198,7 +209,7 @@ test('replacement widget preserves the socketless contract used by official inpu
   click(node, 'add'); const saved = widget(node).value;
   node.onConfigure();
   assert.equal(widget(node).value, saved);
-  assert.deepEqual(node.inputs, [{ name: 'model' }]);
+  assert.deepEqual(node.inputs, [{ name: 'model', type: 'MODEL', link: null }, { name: 'clip', type: 'CLIP', link: null }]);
 });
 
 test('button operations create a public canvas transaction without depending on a later mouseup', async () => {
@@ -206,7 +217,7 @@ test('button operations create a public canvas transaction without depending on 
   click(node, 'add');
   assert.deepEqual(world.changes, [
     { phase: 'before', value: '{"schema_version":1,"items":[]}' },
-    { phase: 'after', value: '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":true,"strength":1}]}' },
+    { phase: 'after', value: '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":true,"strength":1,"clip_strength":0}]}' },
   ]);
 });
 
@@ -226,7 +237,7 @@ test('undo and redo shortcuts propagate from buttons while text and number editi
 test('undo reconstruction with the same widget address replaces the reused Vue host with fresh node DOM and state', async () => {
   const world = await loadLoraManager(); const first = await world.node({ id: 7 }); first.onAdded();
   const host = world.mount(first);
-  click(first, 'add'); click(first, 'add'); const saved = widget(first).value;
+  click(first, 'add'); click(first, 'add'); edit(first, 'clip_strength', '0.75', 0, 'input'); const saved = widget(first).value;
   click(first, 'add'); first.onRemoved();
   const restored = await world.node({ id: 7, value: saved }); restored.onAdded();
   assert.equal(world.mount(restored), host);
@@ -237,21 +248,29 @@ test('undo reconstruction with the same widget address replaces the reused Vue h
   edit(restored, 'strength', '2', 0, 'input');
   assert.equal(config(first).items[0].strength, 1);
   assert.equal(config(restored).items[0].strength, 2);
+  assert.equal(config(restored).items[0].clip_strength, 0.75);
+  edit(restored, 'clip_strength', '-0.5', 0, 'input');
+  assert.equal(config(first).items[0].clip_strength, 0.75);
+  assert.equal(config(restored).items[0].clip_strength, -0.5);
   const old = control(first, 'strength', 0); old.value = '9'; old.dispatchEvent(event('input'));
   assert.equal(config(restored).items[0].strength, 2);
 });
 
 test('mounted nodes from another graph or copied node ID keep their own DOM during reconstruction', async () => {
   const world = await loadLoraManager();
-  const first = await world.node({ id: 7 }); first.onAdded(); world.mount(first); click(first, 'add');
+  const first = await world.node({ id: 7 }); first.onAdded(); world.mount(first); click(first, 'add'); edit(first, 'clip_strength', '0.25', 0, 'input');
   const graph = { id: 'subgraph-2', rootGraph: world.app.rootGraph, canvasAction(callback) { callback(world.canvas); } };
-  const nested = await world.node({ id: 7, ownerGraph: graph }); nested.onAdded(); const nestedHost = world.mount(nested);
-  const copied = await world.node({ id: 8 }); copied.onAdded(); const copiedHost = world.mount(copied);
+  const nested = await world.node({ id: 7, ownerGraph: graph, value: widget(first).value }); nested.onAdded(); const nestedHost = world.mount(nested);
+  const copied = await world.node({ id: 8, value: widget(first).value }); copied.onAdded(); const copiedHost = world.mount(copied);
   first.onRemoved();
   const restored = await world.node({ id: 7, value: widget(first).value }); restored.onAdded(); world.mount(restored);
   assert.equal(widget(nested).element.parentElement, nestedHost);
   assert.equal(widget(copied).element.parentElement, copiedHost);
   assert.equal(widget(restored).element.isConnected, true);
+  for (const node of [nested, copied, restored]) {
+    assert.equal(config(node).items[0].clip_strength, 0.25);
+    assert.equal(node.outputs[0].type, 'MODEL'); assert.equal(node.outputs[1].type, 'CLIP');
+  }
 });
 
 test('legacy UUID hosts still move a rebuilt widget into their new container after old host teardown', async () => {
@@ -269,16 +288,108 @@ test('legacy UUID hosts still move a rebuilt widget into their new container aft
 
 test('initial creation and configure remove only the STRING factory generated loras socket and keep JSON authoritative', async () => {
   const world = await loadLoraManager(); const node = await world.node({ generatedInput: true });
-  assert.deepEqual(node.inputs, [{ name: 'model' }]);
+  assert.deepEqual(node.inputs, [{ name: 'model', type: 'MODEL', link: null }, { name: 'clip', type: 'CLIP', link: null }]);
   assert.equal(node.widgets.length, 1);
-  const saved = '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":false,"strength":0.5}]}';
+  const saved = '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":false,"strength":0.5,"clip_strength":0.25}]}';
   const generated = { name: 'loras', type: 'STRING', link: null, widget: { name: 'loras' } };
-  node.configure({ inputs: [{ name: 'model' }, generated], widgets_values: [saved] });
-  assert.deepEqual(node.inputs, [{ name: 'model' }]);
+  node.configure({ inputs: [{ name: 'model', type: 'MODEL', link: null }, generated], widgets_values: [saved] });
+  assert.deepEqual(node.inputs, [{ name: 'model', type: 'MODEL', link: null }, { name: 'clip', type: 'CLIP', link: null }]);
   assert.equal(widget(node).serializeValue(), saved);
   assert.equal(rows(node).length, 1);
   const unknown = { name: 'other', type: 'STRING', widget: { name: 'other' }, link: null };
-  node.configure({ inputs: [{ name: 'model' }, unknown, generated], widgets_values: [saved] });
-  assert.deepEqual(node.inputs, [{ name: 'model' }, unknown]);
+  node.configure({ inputs: [{ name: 'model', type: 'MODEL', link: null }, unknown, generated], widgets_values: [saved] });
+  assert.deepEqual(node.inputs, [{ name: 'model', type: 'MODEL', link: null }, unknown, { name: 'clip', type: 'CLIP', link: null }]);
   assert.equal(widget(node).value, saved);
+});
+
+test('legacy rows gain zero CLIP strength without losing duplicates, order or model values', async () => {
+  const world = await loadLoraManager();
+  const raw = '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":false,"strength":0},{"name":"a.safetensors","enabled":true,"strength":-2.5}]}';
+  const node = await world.node({ value: raw });
+  assert.deepEqual(config(node).items, [
+    { name: 'a.safetensors', enabled: false, strength: 0, clip_strength: 0 },
+    { name: 'a.safetensors', enabled: true, strength: -2.5, clip_strength: 0 },
+  ]);
+  assert.equal(control(node, 'clip_strength', 0).value, '0');
+  assert.equal(control(node, 'clip_strength', 1).value, '0');
+  assert.equal(widget(node).serializeValue(), '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":false,"strength":0,"clip_strength":0},{"name":"a.safetensors","enabled":true,"strength":-2.5,"clip_strength":0}]}');
+});
+
+test('a shared header identifies the single-row controls and each strength keeps an accessible row-specific name', async () => {
+  const world = await loadLoraManager(); const node = await world.node(); click(node, 'add');
+  click(node, 'add');
+  const header = control(node, 'header');
+  assert.deepEqual(header.children.map(heading => heading.textContent), ['LoRA名称', '模型强度', 'CLIP强度']);
+  assert.equal(header.parentElement, rows(node)[0].parentElement);
+  assert.equal(header.parentElement.children[0], header);
+  assert.equal(widget(node).element.querySelectorAll('.enhance-kit-lora-header').length, 1);
+  assert.deepEqual(rows(node)[0].children.map(child => child.dataset.action ?? 'moves'), ['drag', 'enabled', 'name', 'strength', 'clip_strength', 'moves', 'delete']);
+  assert.equal(rows(node)[0].querySelectorAll('label').length, 0);
+  assert.equal(control(node, 'name', 0).getAttribute('aria-label'), '第 1 项 LoRA 文件');
+  assert.equal(control(node, 'name', 0).title, 'a.safetensors');
+  for (const [field, label] of [['strength', '模型'], ['clip_strength', 'CLIP']]) {
+    const input = control(node, field, 0);
+    assert.equal(input.parentElement, rows(node)[0]);
+    assert.ok(input.title.includes(label));
+    assert.equal(input.getAttribute('aria-label'), `第 1 项${label}强度`);
+    assert.equal(control(node, field, 1).getAttribute('aria-label'), `第 2 项${label}强度`);
+  }
+  click(node, 'delete', 0);
+  assert.equal(control(node, 'header'), header);
+  assert.equal(widget(node).element.querySelectorAll('.enhance-kit-lora-header').length, 1);
+});
+
+for (const invalid of ['true', 'null', '"0.5"', '1e999', 'NaN', 'Infinity']) test(`invalid CLIP strength ${invalid} preserves raw JSON and requires explicit correction`, async () => {
+  const world = await loadLoraManager();
+  const raw = ` {"schema_version":1,"items":[{"name":"a.safetensors","enabled":true,"strength":1,"clip_strength":${invalid}}]} `;
+  const node = await world.node({ value: raw });
+  assert.equal(widget(node).value, raw); assert.equal(widget(node).serializeValue(), raw);
+  assert.equal(control(node, 'raw').value, raw); assert.equal(control(node, 'add').disabled, true);
+  assert.equal(rows(node).length, 0); assert.ok(control(node, 'status').textContent);
+  const repaired = '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":true,"strength":1,"clip_strength":-0.5}]}';
+  edit(node, 'raw', repaired, undefined, 'input');
+  assert.equal(widget(node).value, raw);
+  click(node, 'apply');
+  assert.equal(widget(node).value, repaired);
+  assert.equal(control(node, 'clip_strength', 0).value, '-0.5');
+});
+
+test('creation and legacy configure append CLIP ports while keeping MODEL zero and original links', async () => {
+  const world = await loadLoraManager(); const node = await world.node({ legacyPorts: true });
+  assert.deepEqual(node.inputs, [{ name: 'model', type: 'MODEL', link: null }, { name: 'clip', type: 'CLIP', link: null }]);
+  assert.deepEqual(node.outputs, [{ name: 'model', type: 'MODEL', links: null }, { name: 'clip', type: 'CLIP', links: null }]);
+  const modelInput = { name: 'model', type: 'MODEL', link: 42 };
+  const modelOutput = { name: 'model', type: 'MODEL', links: [43, 44] };
+  const unknown = { name: 'other', type: 'STRING', widget: { name: 'other' }, link: 45 };
+  const generated = { name: 'loras', type: 'STRING', link: null, widget: { name: 'loras' } };
+  const legacy = '{"schema_version":1,"items":[{"name":"sub/b.safetensors","enabled":true,"strength":-0.25}]}';
+  node.configure({ inputs: [modelInput, unknown, generated], outputs: [modelOutput], widgets_values: [legacy] });
+  assert.deepEqual(node.inputs, [modelInput, unknown, { name: 'clip', type: 'CLIP', link: null }]);
+  assert.deepEqual(node.outputs, [modelOutput, { name: 'clip', type: 'CLIP', links: null }]);
+  assert.equal(control(node, 'clip_strength', 0).value, '0');
+  node.onConfigure(); node.onAdded();
+  assert.equal(node.inputs.length, 3); assert.equal(node.outputs.length, 2);
+  assert.equal(node.outputs[0].links[0], 43); assert.equal(node.outputs[1].type, 'CLIP');
+});
+
+test('modern configure retains connected CLIP ports and normal extra slots without duplicating either port', async () => {
+  const world = await loadLoraManager(); const node = await world.node();
+  const inputs = [
+    { name: 'model', type: 'MODEL', link: 10 },
+    { name: 'clip', type: 'CLIP', link: 11 },
+    { name: 'loras', type: 'CLIP', link: 12 },
+    { name: 'other', type: 'STRING', widget: { name: 'other' }, link: 13 },
+    { name: 'loras', type: 'STRING', link: null, widget: { name: 'loras' } },
+  ];
+  const outputs = [
+    { name: 'model', type: 'MODEL', links: [20] },
+    { name: 'clip', type: 'CLIP', links: [21, 22] },
+    { name: 'extra', type: 'STRING', links: [23] },
+  ];
+  const raw = '{"schema_version":1,"items":[{"name":"a.safetensors","enabled":true,"strength":0,"clip_strength":1}]}';
+  node.configure({ inputs, outputs, widgets_values: [raw] });
+  assert.deepEqual(node.inputs, inputs.slice(0, -1)); assert.deepEqual(node.outputs, outputs);
+  assert.equal(widget(node).serializeValue(), raw);
+  node.onConfigure();
+  assert.deepEqual(node.inputs, inputs.slice(0, -1)); assert.deepEqual(node.outputs, outputs);
 });
