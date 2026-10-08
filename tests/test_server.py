@@ -58,6 +58,9 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(item.stop)
         spec = importlib.util.spec_from_file_location(package, entrypoint, submodule_search_locations=[str(ROOT)])
         self.extension = importlib.util.module_from_spec(spec)
+        package_patch = patch.dict(sys.modules, {package: self.extension})
+        package_patch.start()
+        self.addCleanup(package_patch.stop)
         spec.loader.exec_module(self.extension)
         self.server.app.add_routes(self.server.routes)
         self.client = TestClient(TestServer(self.server.app))
@@ -70,7 +73,8 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.assertEqual(await response.json(), PAYLOAD)
         self.assertEqual(self.extension.WEB_DIRECTORY, "./web")
-        self.assertEqual(self.extension.NODE_CLASS_MAPPINGS, {})
+        self.assertIn("EnhanceKitPromptLibrary", self.extension.NODE_CLASS_MAPPINGS)
+        self.assertEqual(self.extension.NODE_CLASS_MAPPINGS["EnhanceKitPromptLibrary"].RETURN_TYPES, ("STRING",))
 
     async def test_slow_collection_runs_outside_event_loop(self):
         self.monitor.block = True

@@ -4,12 +4,18 @@ from aiohttp import web
 from server import PromptServer
 
 from .resource_monitor import ResourceMonitor
+from .prompt_library import PromptLibraryStore
+from .prompt_library_api import register_prompt_library_routes
+from .prompt_library_nodes import EnhanceKitPromptLibrary
 
 
 WEB_DIRECTORY = "./web"
-NODE_CLASS_MAPPINGS = {}
+NODE_CLASS_MAPPINGS = {"EnhanceKitPromptLibrary": EnhanceKitPromptLibrary}
+NODE_DISPLAY_NAME_MAPPINGS = {"EnhanceKitPromptLibrary": "提示词库（EnhanceKit）"}
 
 _monitor = ResourceMonitor()
+_prompt_library = PromptLibraryStore()
+register_prompt_library_routes(PromptServer.instance, _prompt_library)
 
 
 @PromptServer.instance.routes.get("/enhance-kit/resources")
