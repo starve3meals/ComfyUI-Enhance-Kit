@@ -16,25 +16,52 @@ class Element extends EventTarget {
   constructor(tag) { super(); this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={};this.value='';this.textContent='';this.hidden=false;this.className='';this.classList={add:(name)=>{this.className+=' '+name;}}; }
   get value(){ return this._value; }
   set value(value){ this._value=this.tagName==='TEXTAREA'?String(value).replace(/\r\n?/g,'\n'):value; }
-  append(...children) { this.children.push(...children);for(const child of children)child.parent=this; }
+  append(...children) { for(const child of children){child.remove();this.children.push(child);child.parent=this;} }
+  before(child) { const parent=this.parent;if(!parent)return;child.remove();parent.children.splice(parent.children.indexOf(this),0,child);child.parent=parent; }
   replaceChildren(...children) { this.children=[];this.append(...children); }
-  remove() { if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);this.removed=true; }
+  remove() { if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);this.parent=undefined; }
   setAttribute(key,value) { this[key]=value; }
   focus() { this.focused=true; }
   querySelector(selector) { return this.querySelectorAll(selector)[0]??null; }
   querySelectorAll(selector) { const nodes=this.children.flatMap(c=>[c,...c.querySelectorAll('*')]);if(selector==='*')return nodes;const action=selector.match(/^\[data-action="(.*)"\]$/)?.[1];return nodes.filter(c=>action?c.dataset.action===action:c.tagName.toLowerCase()===selector); }
 }
 
-export async function loadLibrary({entry='prompt_library.js', fetchApi}={}) {
+export async function loadLibrary({entry='prompt_library.js', fetchApi, autoLifecycle=true}={}) {
   const world = {library:fixture(), requests:[], extensions:[], alerts:[]};
   const window = new EventTarget();
   const document = {head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag)};
-  window.comfyAPI={ui:{ComfyDialog:class {
-    constructor(){this.element=new Element('div');world.dialog=this;document.body.append(this.element);}
-    show(content){this.element.append(content);}
-    close(){this.closed=true;}
-  }}};
   const app = {rootGraph:{}, graph:null, registerExtension:e=>world.extensions.push(e)};
+  const dialogs=new Map(),mounts=[],unmounts=[];
+  world.host={
+    flushMounts(){for(const mount of mounts.splice(0))mount();},
+    flushUnmounts(){for(const unmount of unmounts.splice(0))unmount();},
+    remove(dialog=world.dialog){
+      if(!dialogs.delete(dialog.key))return;
+      dialog.closed=true;
+      dialog.spec.dialogComponentProps.onRemoved?.();
+      unmounts.push(()=>{
+        if(dialog.mounted){dialog.spec.component.beforeUnmount?.call(dialog.instance);dialog.spec.component.unmounted?.call(dialog.instance);}
+        dialog.element.remove();
+      });
+      if(autoLifecycle)queueMicrotask(()=>world.host.flushUnmounts());
+    },
+    dismiss(kind){
+      const dialog=world.dialog,props=dialog.spec.dialogComponentProps;
+      if(kind==='escape'?props.closable!==false:kind==='mask'?props.dismissableMask!==false:props.dismissOnFocusOutside!==false)world.host.remove(dialog);
+    }
+  };
+  app.extensionManager={dialog:{showExtensionDialog(spec){
+    const key=spec.key.startsWith('extension-')?spec.key:`extension-${spec.key}`;
+    const dialog={key,spec,element:new Element('div')};
+    dialogs.set(key,dialog);world.dialog=dialog;
+    mounts.push(()=>{
+      if(dialog.closed)return;
+      const anchor=new Element('#comment');dialog.element.append(anchor);document.body.append(dialog.element);
+      dialog.instance={$el:anchor};dialog.mounted=true;spec.component.mounted.call(dialog.instance);
+    });
+    if(autoLifecycle)queueMicrotask(()=>world.host.flushMounts());
+    return {dialog,closeDialog:()=>{const current=dialogs.get(spec.key);if(current)world.host.remove(current);}};
+  }}};
   app.graph=app.rootGraph;
   const api = {user:'a', fetchApi:fetchApi ?? (async (path,options={}) => {
     world.requests.push({path,options});

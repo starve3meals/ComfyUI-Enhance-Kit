@@ -1,4 +1,5 @@
 import { api } from "../../scripts/api.js";
+import { app } from "../../scripts/app.js";
 import { readLibrary, mutateLibrary } from "./prompt_library_client.js";
 
 let opened;
@@ -15,12 +16,9 @@ function element(tag, text, className) {
  */
 export function openPromptLibraryManager({ categoryId = "", promptId = "", onSaved } = {}) {
     if (opened) { opened.element.focus(); return opened.done; }
-    const Dialog = window.comfyAPI?.ui?.ComfyDialog;
-    if (!Dialog) return Promise.reject(new Error("当前 ComfyUI 前端没有可用的管理弹窗，请使用已支持版本。"));
-    const dialog = new Dialog("div", []);
-    dialog.element.classList.add("enhance-kit-prompt-library");
-    const root = element("section");
-    root.append(element("h2", "分类提示词库"), element("p", "同一用户的工作流共享此库；节点运行时读取最新正文。", "ek-description"));
+    const root = element("section", undefined, "enhance-kit-prompt-library");
+    root.tabIndex = -1;
+    root.append(element("p", "同一用户的工作流共享此库；节点运行时读取最新正文。", "ek-description"));
     const status = element("p", "正在读取…", "ek-status");
     status.setAttribute("role", "status");
     root.append(status);
@@ -72,7 +70,8 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     const readController = new AbortController();
     let finish;
     const done = new Promise((resolve) => { finish = resolve; });
-    opened = { element: dialog.element, done };
+    const current = { element: root, done };
+    opened = current;
 
     function valid() { return alive && api.user === owner; }
     function draft() {
@@ -210,24 +209,45 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     save.onclick = saveDraft;
     refresh.onclick = () => reload(true);
     title.oninput = text.oninput = target.onchange = updateDisabled;
-    const originalClose = dialog.close.bind(dialog);
-    function destroy() {
+    function cleanup() {
         if (!alive) return;
         alive = false; readController.abort();
         askResolve?.("cancel"); askResolve = undefined;
         window.removeEventListener("focus", userChanged);
-        originalClose(); dialog.element.remove(); opened = undefined; finish();
+        root.remove();
+        if (opened === current) opened = undefined;
+        finish();
+    }
+    function destroy() {
+        if (!alive) return;
+        cleanup(); closeDialog();
     }
     function userChanged() { if (api.user !== owner) destroy(); }
-    dialog.close = async () => {
+    close.onclick = async () => {
         if (askResolve) return;
         if (busy) await busy;
         if (valid() && await canLeave()) destroy();
         else if (api.user !== owner) destroy();
     };
-    close.onclick = () => dialog.close();
     window.addEventListener("focus", userChanged);
-    dialog.show(root);
+    const { closeDialog } = app.extensionManager.dialog.showExtensionDialog({
+        key: "extension-enhance-kit-prompt-library",
+        title: "分类提示词库",
+        component: {
+            inheritAttrs: false,
+            render() { return null; },
+            mounted() { if (alive) { this.$el.before(root); root.focus(); } },
+            beforeUnmount() { root.remove(); },
+            unmounted() { cleanup(); },
+        },
+        dialogComponentProps: {
+            size: "xl", modal: true, closable: false, dismissableMask: false,
+            dismissOnFocusOutside: false, draggable: false,
+            contentClass: "enhance-kit-prompt-library-dialog-content",
+            bodyClass: "enhance-kit-prompt-library-dialog-body",
+            onRemoved: cleanup,
+        },
+    });
     updateDisabled();
     void reload(false);
     return done;

@@ -1,16 +1,17 @@
 .enhance-kit-prompt-library {
-    z-index: 2000;
     font-family: inherit;
 }
-.enhance-kit-prompt-library .comfy-modal-content {
+.enhance-kit-prompt-library-dialog-content {
     width: min(1080px, 94vw);
     max-height: 90vh;
+}
+.enhance-kit-prompt-library-dialog-body {
+    min-height: 0;
     overflow: auto;
     padding: 20px;
     color: var(--input-text);
     background: var(--comfy-menu-bg);
 }
-.enhance-kit-prompt-library h2 { margin: 0 0 8px; font-size: 1.25rem; }
 .enhance-kit-prompt-library p { margin: 8px 0; }
 .enhance-kit-prompt-library .ek-description { opacity: 0.75; }
 .enhance-kit-prompt-library .ek-status { min-height: 1.5em; }
@@ -34,5 +35,5 @@
 @media (max-width: 760px) {
     .enhance-kit-prompt-library .ek-columns { grid-template-columns: 1fr 1fr; }
     .enhance-kit-prompt-library .ek-editor { grid-column: 1 / -1; }
-    .enhance-kit-prompt-library .comfy-modal-content { padding: 12px; }
+    .enhance-kit-prompt-library-dialog-body { padding: 12px; }
 }
