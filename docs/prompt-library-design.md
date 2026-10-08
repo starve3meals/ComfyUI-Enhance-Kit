@@ -2,7 +2,7 @@
 
 日期：2026-10-08
 
-状态：用户已确认功能方案及官方节点样式要求；本文待审阅，尚未进入实施。
+状态：2026-10-08 用户已审阅并确认本文，授权生成实施计划；尚未进入实施。
 
 代码基线：`6e466da`；设计分支：`docs/prompt-library-design`。
 
@@ -156,4 +156,4 @@
 - [ComfyUI 官方扩展钩子说明](https://docs.comfy.org/custom-nodes/js/javascript_hooks)
 - [ComfyUI 官方节点属性说明](https://docs.comfy.org/custom-nodes/backend/server_overview)
 
-本文审阅确认后再生成实施计划；本阶段不合并或推送。
+本文已确认，进入实施计划编写阶段；本阶段不合并或推送。
