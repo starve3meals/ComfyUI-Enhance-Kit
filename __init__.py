@@ -7,11 +7,18 @@ from .resource_monitor import ResourceMonitor
 from .prompt_library import PromptLibraryStore
 from .prompt_library_api import register_prompt_library_routes
 from .prompt_library_nodes import EnhanceKitPromptLibrary
+from .lora_manager import EnhanceKitLoraManager
 
 
 WEB_DIRECTORY = "./web"
-NODE_CLASS_MAPPINGS = {"EnhanceKitPromptLibrary": EnhanceKitPromptLibrary}
-NODE_DISPLAY_NAME_MAPPINGS = {"EnhanceKitPromptLibrary": "提示词库（EnhanceKit）"}
+NODE_CLASS_MAPPINGS = {
+    "EnhanceKitPromptLibrary": EnhanceKitPromptLibrary,
+    "EnhanceKitLoraManager": EnhanceKitLoraManager,
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "EnhanceKitPromptLibrary": "提示词库（EnhanceKit）",
+    "EnhanceKitLoraManager": "LoRA 管理器（EnhanceKit）",
+}
 
 _monitor = ResourceMonitor()
 _prompt_library = PromptLibraryStore()

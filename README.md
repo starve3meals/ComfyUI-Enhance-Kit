@@ -1,8 +1,25 @@
 # ComfyUI-Enhance-Kit
 
-ComfyUI 的轻量实用工具扩展，提供**菜单栏资源监控**和**分类提示词库节点**。可以查看主机资源状态，也可以在多个工作流中复用和维护常用提示词，无需下载模型。
+ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示词库**和**菜单栏资源监控**。可以在一个节点中组合多项 LoRA、在多个工作流中维护常用提示词，以及查看主机资源状态。扩展不附带模型。
 
 ## 功能
+
+### LoRA 管理器
+
+在节点搜索中查找 **LoRA 管理器（EnhanceKit）**，或在 `EnhanceKit → Model` 分类添加节点。
+
+1. 将加载器的 `MODEL` 输出连接到节点的 `model` 输入，再将节点的 `model` 输出连接到采样器。
+2. 点击 **添加 LoRA**，选择文件并设置该项模型强度；可以继续添加其他 LoRA，也可以重复选择同一文件。
+3. 用勾选框启用／停用单项，点击 `×` 删除条目；拖动左侧手柄调整顺序，也可使用上下箭头。
+
+节点按列表从上到下应用启用项。强度默认为 `1`，支持负数；停用项和强度为 `0` 的项不会读取文件。列表为空或全部跳过时，输出原模型。删除条目不会删除磁盘上的 LoRA 文件。
+
+- **仅处理 MODEL**：不加载 LoRA 中针对 CLIP／文本编码器的部分；需要调整 CLIP 时，请另接官方 LoRA 加载节点。
+- 文件从 ComfyUI 的 LoRA 目录中选择，通常为 `models/loras`，也支持 `extra_model_paths.yaml` 配置的 LoRA 目录。新增文件后刷新节点定义，必要时重启 ComfyUI 并刷新浏览器。
+- 文件选择、开关、强度和顺序随工作流保存；**工作流不包含 LoRA 文件**，迁移时需要另行复制文件并保持对应相对路径。
+- 文件不可用时保留原选择并提示；启用的非零项必须重新选择有效文件或停用，否则运行会报错。
+
+普通 LoRA 的固定权重增量相加，交换顺序通常不会改变其数学结果，浮点计算可能有细微差异；DoRA 等依赖当前权重的补丁可能受顺序影响。此节点沿用 ComfyUI 官方加载与补丁机制，兼容性取决于基础模型和所选 LoRA。
 
 ### 分类提示词库
 
@@ -67,7 +84,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 .\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\ComfyUI-Enhance-Kit\requirements.txt
 ```
 
-安装完成后，**重启 ComfyUI 并刷新浏览器**。资源条会出现在菜单栏；使用提示词库时按上方步骤添加节点。
+安装完成后，**重启 ComfyUI 并刷新浏览器**。资源条会出现在菜单栏；使用 LoRA 管理器或提示词库时按上方步骤添加节点。
 
 已安装过此扩展时，请按下方更新步骤操作，避免在 `custom_nodes` 中保留多个副本。其他安装方式可参考 [ComfyUI 官方自定义节点安装说明](https://docs.comfy.org/installation/install_custom_node)。
 
@@ -92,6 +109,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 - GPU 指标通过 NVML 采集，目前支持 NVIDIA GPU，需要可用的 NVIDIA 驱动。
 - 没有可用的 NVIDIA GPU 时，CPU 和内存仍可显示；GPU 相关项显示“不可用”。
 - 提示词库已在 Windows、ComfyUI `0.39.0`、前端 `1.55.14` 验证，覆盖传统节点、Nodes 2.0 及深浅色主题；可在 CPU 环境运行。管理窗口使用官方扩展弹窗 API，跟随前端主题与弹窗层级。其他前端版本尚未验证。
+- LoRA 管理器已在上述 ComfyUI／前端版本验证，覆盖传统节点、Nodes 2.0、深浅色主题、工作流保存恢复、复制、撤销重做及子图；加载链使用小型 CPU 模型与实际队列验证。其他前端版本尚未验证。
 - 资源条已验证 Windows、NVIDIA GPU，前端 `1.53.10` 和 `1.55.14`；其他系统尚未完成兼容性验证。
 - 当前不提供 CPU 温度和磁盘指标。
 

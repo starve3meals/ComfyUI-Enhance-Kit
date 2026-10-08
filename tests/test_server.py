@@ -49,9 +49,15 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.server = SimpleNamespace(routes=web.RouteTableDef(), app=web.Application())
         package = "enhance_kit_server_test"
         dependency = SimpleNamespace(ResourceMonitor=lambda: self.monitor)
+        comfy_sd = SimpleNamespace()
+        comfy_utils = SimpleNamespace()
         self.patches = [patch.dict(sys.modules, {
             "server": SimpleNamespace(PromptServer=SimpleNamespace(instance=self.server)),
             package + ".resource_monitor": dependency,
+            "folder_paths": SimpleNamespace(get_filename_list=lambda category: []),
+            "comfy": SimpleNamespace(sd=comfy_sd, utils=comfy_utils),
+            "comfy.sd": comfy_sd,
+            "comfy.utils": comfy_utils,
         })]
         for item in self.patches:
             item.start()
@@ -75,6 +81,10 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.extension.WEB_DIRECTORY, "./web")
         self.assertIn("EnhanceKitPromptLibrary", self.extension.NODE_CLASS_MAPPINGS)
         self.assertEqual(self.extension.NODE_CLASS_MAPPINGS["EnhanceKitPromptLibrary"].RETURN_TYPES, ("STRING",))
+        self.assertIn("EnhanceKitLoraManager", self.extension.NODE_CLASS_MAPPINGS)
+        lora_node = self.extension.NODE_CLASS_MAPPINGS["EnhanceKitLoraManager"]
+        self.assertEqual(lora_node.RETURN_TYPES, ("MODEL",))
+        self.assertEqual(self.extension.NODE_DISPLAY_NAME_MAPPINGS["EnhanceKitLoraManager"], "LoRA 管理器（EnhanceKit）")
 
     async def test_slow_collection_runs_outside_event_loop(self):
         self.monitor.block = True
