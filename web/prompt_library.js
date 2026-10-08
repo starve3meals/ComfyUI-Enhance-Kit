@@ -118,6 +118,7 @@ app.registerExtension({
         states.set(node, state);
         active.add(state);
         text.serialize = false;
+        text.label = "正文预览";
         text.dynamicPrompts = false;
         text.options.read_only = true;
         if (text.element) text.element.readOnly = true;
