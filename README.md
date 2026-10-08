@@ -91,7 +91,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 
 - GPU 指标通过 NVML 采集，目前支持 NVIDIA GPU，需要可用的 NVIDIA 驱动。
 - 没有可用的 NVIDIA GPU 时，CPU 和内存仍可显示；GPU 相关项显示“不可用”。
-- 提示词库已在 Windows、ComfyUI `0.39.0`、前端 `1.55.14` 验证，覆盖传统节点、Nodes 2.0 及深浅色主题；可在 CPU 环境运行。管理窗口使用当前前端导出的 `ComfyDialog`，该入口已标记 deprecated，其他前端版本尚未验证。
+- 提示词库已在 Windows、ComfyUI `0.39.0`、前端 `1.55.14` 验证，覆盖传统节点、Nodes 2.0 及深浅色主题；可在 CPU 环境运行。管理窗口使用前端导出的旧式 `ComfyDialog`；已标记 deprecated 的是旧脚本导入路径，本扩展未使用该路径。其他前端版本尚未验证。
 - 资源条已验证 Windows、NVIDIA GPU，前端 `1.53.10` 和 `1.55.14`；其他系统尚未完成兼容性验证。
 - 当前不提供 CPU 温度和磁盘指标。
 
