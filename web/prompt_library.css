@@ -1,3 +1,7 @@
+.enhance-kit-prompt-library {
+    z-index: 2000;
+    font-family: inherit;
+}
 .enhance-kit-prompt-library .comfy-modal-content {
     width: min(1080px, 94vw);
     max-height: 90vh;
