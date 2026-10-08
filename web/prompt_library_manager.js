@@ -66,6 +66,7 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     let library = { revision: 0, categories: [], prompts: [] };
     let selectedCategory = categoryId, selectedPrompt = promptId;
     let original = { category_id: "", title: "", text: "" };
+    let originalTextDisplay = "";
     let alive = true, loaded = false, busy, askResolve, readGeneration = 0;
     const owner = api.user;
     const readController = new AbortController();
@@ -74,7 +75,11 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     opened = { element: dialog.element, done };
 
     function valid() { return alive && api.user === owner; }
-    function draft() { return { category_id: target.value, title: title.value, text: text.value }; }
+    function draft() {
+        // textarea 会规范换行；只改标题或分类时仍保存未经编辑的原始正文。
+        return { category_id: target.value, title: title.value,
+            text: text.value === originalTextDisplay ? original.text : text.value };
+    }
     function dirty() {
         const value = draft();
         return value.category_id !== original.category_id || value.title !== original.title || value.text !== original.text;
@@ -107,6 +112,7 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
         original = item ? { category_id: item.category_id, title: item.title, text: item.text } : { category_id: selectedCategory, title: "", text: "" };
         renderLists();
         target.value = original.category_id; title.value = original.title; text.value = original.text;
+        originalTextDisplay = text.value;
         latest.hidden = true;
         updateDisabled();
     }
@@ -161,12 +167,12 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     async function reload(keepDraft) {
         if (busy || askResolve || !valid()) return;
         const generation = ++readGeneration;
-        const value = draft();
         try {
             const updated = await readLibrary({ signal: readController.signal });
             if (!valid() || generation !== readGeneration) return;
             library = updated; loaded = true;
             if (keepDraft) {
+                const value = draft();
                 renderLists(); target.value = value.category_id; title.value = value.title; text.value = value.text;
                 const item = library.prompts.find((item) => item.id === selectedPrompt);
                 latest.hidden = !item; latestText.textContent = item?.text ?? "";

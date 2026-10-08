@@ -23,9 +23,9 @@ test('save sends exact body and conflict retains draft without retry',async()=>{
   const world=await loadLibrary({entry:'prompt_library_manager.js'});const done=open(world);await new Promise(r=>setImmediate(r));
   let calls=0,body;
   world.api.fetchApi=async(path,options)=>{calls++;body=JSON.parse(options.body);return response({error:{code:'revision_conflict',message:'库已更新'}},409);};
-  await input(world,'text','  中文\r\n{a|b}  ');await control(world,'save').onclick();
+  await input(world,'text','  中文\n{a|b}  ');await control(world,'save').onclick();
   assert.equal(calls,1);assert.equal(body.expected_revision,2);assert.equal(body.action,'prompt.update');
-  assert.equal(body.data.text,'  中文\r\n{a|b}  ');assert.equal(control(world,'text').value,body.data.text);
+  assert.equal(body.data.text,'  中文\n{a|b}  ');assert.equal(control(world,'text').value,body.data.text);
   const closing=world.dialog.close();await new Promise(r=>setImmediate(r));await control(world,'discard-dirty').onclick();await closing;await done;
 });
 
@@ -96,4 +96,24 @@ test('duplicate opening reuses window and user switch removes it',async()=>{
   await new Promise(r=>setImmediate(r));
   world.api.user='b';world.window.dispatchEvent(new Event('focus'));await first;
   assert.equal(world.dialog.element.removed,true);assert.equal(world.document.body.children.length,0);
+});
+
+test('typing while refresh is pending preserves the newest draft',async()=>{
+  const world=await loadLibrary({entry:'prompt_library_manager.js'});const done=open(world);await new Promise(r=>setImmediate(r));
+  const gate=deferred();world.api.fetchApi=()=>gate.promise;
+  await input(world,'text','刷新前');const refreshing=control(world,'refresh').onclick();
+  await input(world,'text','刷新等待中继续编辑');await input(world,'title','新标题');control(world,'target').value='video';
+  gate.resolve(response(world.library));await refreshing;
+  assert.equal(control(world,'text').value,'刷新等待中继续编辑');assert.equal(control(world,'title').value,'新标题');assert.equal(control(world,'target').value,'video');
+  const closing=world.dialog.close();await new Promise(r=>setImmediate(r));await control(world,'discard-dirty').onclick();await closing;await done;
+});
+
+test('title-only edit preserves original CRLF despite textarea normalization',async()=>{
+  const world=await loadLibrary({entry:'prompt_library_manager.js'});const raw='  中文\r\n{a|b}  ';world.library.prompts[0].text=raw;
+  const done=open(world);await new Promise(r=>setImmediate(r));
+  assert.equal(control(world,'text').value,'  中文\n{a|b}  ');
+  let saved;world.api.fetchApi=async(path,options)=>{saved=JSON.parse(options.body);world.library.prompts[0].title=saved.data.title;return response(world.library);};
+  await input(world,'title','改标题');await control(world,'save').onclick();
+  assert.equal(saved.data.text,raw);
+  await world.dialog.close();await done;
 });

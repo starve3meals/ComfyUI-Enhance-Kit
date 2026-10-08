@@ -14,6 +14,8 @@ export function deferred() {
 
 class Element extends EventTarget {
   constructor(tag) { super(); this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={};this.value='';this.textContent='';this.hidden=false;this.className='';this.classList={add:(name)=>{this.className+=' '+name;}}; }
+  get value(){ return this._value; }
+  set value(value){ this._value=this.tagName==='TEXTAREA'?String(value).replace(/\r\n?/g,'\n'):value; }
   append(...children) { this.children.push(...children);for(const child of children)child.parent=this; }
   replaceChildren(...children) { this.children=[];this.append(...children); }
   remove() { if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);this.removed=true; }
