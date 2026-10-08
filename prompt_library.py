@@ -176,6 +176,7 @@ class PromptLibraryStore:
 
     def _write(self, path, library):
         temporary = None
+        failure = None
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
@@ -186,7 +187,14 @@ class PromptLibraryStore:
                 os.fsync(file.fileno())
             os.replace(temporary, path)
         except OSError as error:
-            raise PromptLibraryError("storage_error", "无法保存提示词库，请检查文件和权限") from error
+            failure = error
         finally:
             if temporary is not None:
-                temporary.unlink(missing_ok=True)
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError as error:
+                    # 清理故障也要报告为存储错误，但不能覆盖导致保存失败的原始原因。
+                    if failure is None:
+                        failure = error
+        if failure is not None:
+            raise PromptLibraryError("storage_error", "无法保存提示词库，请检查文件和权限") from failure

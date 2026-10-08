@@ -162,6 +162,17 @@ class LibraryTests(unittest.TestCase):
             self.assert_error("storage_error", lambda: self.category())
             self.assertEqual(self.path.read_text(encoding="utf-8"), contents)
 
+    def test_cleanup_failure_preserves_original_storage_error(self):
+        self.category()
+        before = self.path.read_bytes()
+        with patch.object(MODULE.os, "replace", side_effect=PermissionError("replace denied")), \
+             patch.object(MODULE.Path, "unlink", side_effect=PermissionError("cleanup denied")):
+            with self.assertRaises(MODULE.PromptLibraryError) as caught:
+                self.category("视频")
+        self.assertEqual(caught.exception.code, "storage_error")
+        self.assertEqual(str(caught.exception.__cause__), "replace denied")
+        self.assertEqual(self.path.read_bytes(), before)
+
 
 if __name__ == "__main__":
     unittest.main()
