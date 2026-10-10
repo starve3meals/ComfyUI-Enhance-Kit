@@ -159,6 +159,21 @@ app.registerExtension({
             changed(own);
             render(own);
         };
+        const originalAdded = node.onAdded;
+        node.onAdded = function (...args) {
+            originalAdded?.apply(this, args);
+            const own = states.get(this);
+            if (!own) return;
+            // 宿主可能重新挂载同一节点实例，需要恢复保存通知和提交校验的注册。
+            changed(own);
+            active.add(own);
+            if (libraryOwner === api.user) {
+                own.owner = api.user;
+                render(own);
+            } else {
+                loading = refresh();
+            }
+        };
         const originalRemoved = node.onRemoved;
         node.onRemoved = function (...args) {
             const own = states.get(this);

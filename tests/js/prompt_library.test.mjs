@@ -109,3 +109,52 @@ test('older refresh response or failure cannot undo a saved library',async()=>{
     assert.equal(widget(node,'resolved_text').value,'已保存的新正文');
   }
 });
+
+test('same node restored to the graph follows saved library changes and submits latest text',async()=>{
+  const world=await loadLibrary();await world.extension.setup();
+  const restored=await world.node(),other=await world.node();
+  await choose(restored);await choose(other);
+  restored.onRemoved();restored.graph=null;
+  restored.graph=world.app.rootGraph;restored.onAdded?.(world.app.rootGraph);
+  restored.onConfigure({});
+  const updated=structuredClone(world.library);updated.revision++;updated.prompts[0].text='恢复后保存的新正文';
+  world.library=updated;world.module.namespace.refreshPromptLibraryNodes(updated);
+  assert.equal(widget(restored,'resolved_text').value,'恢复后保存的新正文');
+  assert.equal(widget(other,'resolved_text').value,'恢复后保存的新正文');
+  assert.equal(await widget(restored,'resolved_text').serializeValue(),'恢复后保存的新正文');
+});
+
+test('reattaching invalidates old resolves and renders the library saved while detached',async()=>{
+  const world=await loadLibrary();await world.extension.setup();
+  const node=await world.node();await choose(node);
+  const gate=deferred(),fetchApi=world.api.fetchApi;world.api.fetchApi=()=>gate.promise;
+  const pending=widget(node,'提示词').callback('portrait');
+  node.onRemoved();node.graph=null;
+  const updated=structuredClone(world.library);updated.revision++;updated.prompts[0].text='离开画布期间的新正文';
+  world.library=updated;world.module.namespace.refreshPromptLibraryNodes(updated);
+  assert.equal(widget(node,'resolved_text').value,'');
+  node.graph=world.app.rootGraph;node.onAdded?.(world.app.rootGraph);
+  assert.equal(widget(node,'resolved_text').value,'离开画布期间的新正文');
+  gate.resolve(response({id:'portrait',category_id:'cat',text:'过期正文',revision:2}));
+  await pending;
+  assert.equal(widget(node,'resolved_text').value,'离开画布期间的新正文');
+  world.api.fetchApi=fetchApi;
+  assert.equal(await widget(node,'resolved_text').serializeValue(),'离开画布期间的新正文');
+});
+
+test('reattaching after a user switch waits for that users library before allowing submission',async()=>{
+  const world=await loadLibrary();await world.extension.setup();
+  const node=await world.node();await choose(node);
+  node.onRemoved();node.graph=null;world.api.user='b';
+  const gate=deferred(),fetchApi=world.api.fetchApi;world.api.fetchApi=()=>gate.promise;
+  node.graph=world.app.rootGraph;node.onAdded?.(world.app.rootGraph);
+  assert.equal(widget(node,'resolved_text').value,'');
+  await assert.rejects(widget(node,'resolved_text').serializeValue(),/当前用户/);
+  world.library={schema_version:1,revision:1,categories:[{id:'cat-b',name:'用户B分类'}],
+    prompts:[{id:'prompt-b',category_id:'cat-b',title:'用户B标题',text:'用户B正文'}]};
+  gate.resolve(response(world.library));await new Promise(r=>setImmediate(r));
+  assert.deepEqual(Array.from(widget(node,'分类').options.values),['','cat-b']);
+  assert.equal(widget(node,'resolved_text').value,'');
+  world.api.fetchApi=fetchApi;await choose(node,'cat-b','prompt-b');
+  assert.equal(await widget(node,'resolved_text').serializeValue(),'用户B正文');
+});
