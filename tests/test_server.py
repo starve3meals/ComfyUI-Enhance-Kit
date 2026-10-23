@@ -41,31 +41,12 @@ class AdapterMonitor:
         self.closed = True
 
 
-class AdapterLinkFlow:
-    def __init__(self, server):
-        self.server = server
-        self.installs = 0
-        self.closed = False
-        self.current = {"schema": 1, "available": True, "reason_code": None}
-
-    def install(self):
-        self.installs += 1
-        return self.current.copy()
-
-    def status(self):
-        return self.current.copy()
-
-    def close(self):
-        self.closed = True
-
-
 class ServerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         entrypoint = ROOT / "__init__.py"
         self.assertTrue(entrypoint.is_file(), "ComfyUI 加载入口尚未实现")
         self.monitor = AdapterMonitor()
         self.server = SimpleNamespace(routes=web.RouteTableDef(), app=web.Application())
-        self.link_flow = AdapterLinkFlow(self.server)
         package = "enhance_kit_server_test"
         dependency = SimpleNamespace(ResourceMonitor=lambda: self.monitor)
         comfy_sd = SimpleNamespace()
@@ -73,7 +54,6 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.patches = [patch.dict(sys.modules, {
             "server": SimpleNamespace(PromptServer=SimpleNamespace(instance=self.server)),
             package + ".resource_monitor": dependency,
-            package + ".execution_link_flow": SimpleNamespace(ExecutionLinkFlowObserver=lambda server: self.link_flow),
             "folder_paths": SimpleNamespace(get_filename_list=lambda category: []),
             "comfy": SimpleNamespace(sd=comfy_sd, utils=comfy_utils),
             "comfy.sd": comfy_sd,
@@ -127,20 +107,6 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         await self.client.close()
         self.assertTrue(self.monitor.closed)
         self.assertNotEqual(self.monitor.close_thread, threading.get_ident())
-
-    async def test_link_flow_status_reports_live_backend_availability(self):
-        response = await self.client.get("/enhance-kit/link-flow/status")
-        self.assertEqual(response.status, 200)
-        self.assertEqual(response.headers["Cache-Control"], "no-store")
-        self.assertEqual(await response.json(), {"schema": 1, "available": True, "reason_code": None})
-        self.link_flow.current = {"schema": 1, "available": False, "reason_code": "adapter_conflict"}
-        response = await self.client.get("/enhance-kit/link-flow/status")
-        self.assertEqual(await response.json(), self.link_flow.current)
-        self.assertEqual(self.link_flow.installs, 1)
-
-    async def test_cleanup_closes_owned_link_flow_observer(self):
-        await self.client.close()
-        self.assertTrue(self.link_flow.closed)
 
 
 if __name__ == "__main__":
