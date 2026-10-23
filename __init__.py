@@ -4,6 +4,7 @@ from aiohttp import web
 from server import PromptServer
 
 from .resource_monitor import ResourceMonitor
+from .execution_link_flow import ExecutionLinkFlowObserver
 from .prompt_library import PromptLibraryStore
 from .prompt_library_api import register_prompt_library_routes
 from .prompt_library_nodes import EnhanceKitPromptLibrary
@@ -21,6 +22,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 _monitor = ResourceMonitor()
+_link_flow = ExecutionLinkFlowObserver(PromptServer.instance)
+_link_flow.install()
 _prompt_library = PromptLibraryStore()
 register_prompt_library_routes(PromptServer.instance, _prompt_library)
 
@@ -35,8 +38,15 @@ async def resources(request):
     return web.json_response(snapshot, headers={"Cache-Control": "no-store"})
 
 
+@PromptServer.instance.routes.get("/enhance-kit/link-flow/status")
+async def link_flow_status(request):
+    """返回后端观测可用性；request 不读取输入，响应不缓存，不代表画布兼容性。"""
+    return web.json_response(_link_flow.status(), headers={"Cache-Control": "no-store"})
+
+
 async def close_resources(application):
     """应用清理时在线程中释放采集器；application 为 aiohttp 生命周期参数，无返回值。"""
+    _link_flow.close()
     await asyncio.to_thread(_monitor.close)
 
 

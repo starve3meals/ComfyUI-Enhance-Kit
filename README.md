@@ -4,7 +4,7 @@
 
 ## 简体中文
 
-ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示词库**和**菜单栏资源监控**。可以在一个节点中组合多项 LoRA、在多个工作流中维护常用提示词，以及查看主机资源状态。扩展不附带模型。
+ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示词库**、**执行连线动画**和**菜单栏资源监控**。可以组合 LoRA、跨工作流维护提示词、查看已确认的输入交付和主机资源状态。扩展不附带模型。
 
 ### 功能
 
@@ -45,6 +45,18 @@ ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示�
 数据保存在 ComfyUI 用户目录的 `enhance-kit/prompt-library.json`，默认通常是 `ComfyUI/user/default/enhance-kit/prompt-library.json`。备份或迁移时另行复制该文件：**工作流文件只保存条目 ID，不包含提示词库**。同一库文件应由一个 ComfyUI 服务进程维护。
 
 API 调用方应先向 `/enhance-kit/prompt-library/resolve` POST `{"prompt_id":"条目ID"}`，再将返回的 `text` 作为节点输入 `resolved_text` 提交；导出的 API 执行图包含当时的正文快照，重复提交不会自动读取新版本。多用户模式需使用当前 ComfyUI 用户请求头。
+
+#### 执行连线动画
+
+打开 ComfyUI 设置，搜索 **EnhanceKit**，开启 **执行连线动画**。默认关闭，开启后对新提交的任务生效，无需添加节点。
+
+- 后端确认输入已传入目标节点的执行函数后，对应连线显示约 **450 毫秒**的定向流动效果，沿用原有线型和颜色。
+- 效果表示输入已交付，不代表节点执行完成、数据复制或生成进度；节点长时间计算时不会持续流动。
+- 全部命中缓存、未请求的惰性分支、阻断和调用前失败不会触发。上游来自缓存、下游确实执行时，下游入线仍可显示。
+- 只有当前提交的画布实例与连线能准确对应时才播放；切换工作流、修改连接或恢复节点后，旧任务不会点亮新连线。动态输入重组、子图或 bypass 等无法确认的路径保持静止。
+- 关闭设置、断线、错误或中断会立即停止效果；后台页面不补播历史动画。系统启用“减少动态效果”时不播放。
+
+此功能依赖经过验证的 Python、ComfyUI 执行实现及画布渲染接口。环境不兼容或其他插件替换相关接口时会停用动画并提示原因，工作流仍按原方式执行。兼容范围见下文。
 
 #### 菜单栏资源监控
 
@@ -96,7 +108,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 
 ### 设置
 
-打开 ComfyUI 设置，搜索 **`EnhanceKit`**，或进入 **EnhanceKit → Resources**。
+打开 ComfyUI 设置，搜索 **`EnhanceKit`**。资源监控位于 **EnhanceKit → Resources**，连线动画位于 **EnhanceKit → ExecutionLinkFlow**。
 
 | 设置 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -107,6 +119,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 | 显示 GPU 温度 | 开启 | 显示／隐藏温度卡片 |
 | 刷新间隔 | 1 秒 | 单位为秒；设为 `0` 关闭监控 |
 | 监控 GPU | 自动 | 默认使用首张可用 NVIDIA GPU，也可指定已枚举的设备 |
+| 执行连线动画 | 关闭 | 仅在确认输入已交付时显示短暂流动效果 |
 
 设置由 ComfyUI 保存。全部指标关闭时，资源条隐藏并停止刷新。
 
@@ -117,6 +130,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 - 提示词库已在 Windows、ComfyUI `0.39.0`、前端 `1.55.14` 验证，覆盖传统节点、Nodes 2.0 及深浅色主题；可在 CPU 环境运行。管理窗口使用官方扩展弹窗 API，跟随前端主题与弹窗层级。其他前端版本尚未验证。
 - LoRA 管理器已在上述 ComfyUI／前端版本验证，覆盖传统节点、Nodes 2.0、深浅色主题、旧工作流恢复、复制、撤销重做及子图。加载链使用小型 CPU 模型、官方双文本编码器和实际队列验证，包括独立 CLIP 强度与官方文本编码；尚未验证完整 SD 1.5／SDXL 模型的 GPU 图像生成或其他前端版本。
 - 资源条已验证 Windows、NVIDIA GPU，前端 `1.53.10` 和 `1.55.14`；其他系统尚未完成兼容性验证。
+- 执行连线动画已在 Windows、CPython `3.13.11`、ComfyUI `0.41.0`（核心 `c06bf5f`）、前端 `1.55.18` 的传统画布与 Nodes 2.0 验证，使用 CPU 测试节点及真实队列/WebSocket。首版按已验证的活跃代码准入，升级 Python、核心或前端后可能自动停用；未验证完整模型生成或任意第三方执行器改写。
 - 当前不提供 CPU 温度和磁盘指标。
 
 直接依赖为 `psutil` 和 `nvidia-ml-py`，详见 [requirements.txt](requirements.txt)。其中 `nvidia-ml-py` 提供 `pynvml` 模块，无需另装同名 `pynvml` 分发包。
@@ -159,7 +173,7 @@ git pull --ff-only
 
 ## English
 
-A lightweight utility extension for ComfyUI with a **LoRA manager**, a **categorized prompt library**, and **menu bar resource monitoring**. Combine multiple LoRAs in one node, maintain reusable prompts across workflows, and monitor host resources. No models are bundled with the extension.
+A lightweight utility extension for ComfyUI with a **LoRA manager**, a **categorized prompt library**, **execution link animation**, and **menu bar resource monitoring**. Combine LoRAs, maintain prompts across workflows, and see confirmed input deliveries and host resources. No models are bundled with the extension.
 
 ### Features
 
@@ -200,6 +214,18 @@ The node uses standard dropdowns, a read-only text preview, and buttons. Workflo
 Data is stored at `enhance-kit/prompt-library.json` inside the ComfyUI user directory, normally `ComfyUI/user/default/enhance-kit/prompt-library.json`. Copy this file separately for backup or migration: **workflow files store entry IDs, not the prompt library**. A single ComfyUI server process should manage each library file.
 
 API clients should first POST `{"prompt_id":"entry-id"}` to `/enhance-kit/prompt-library/resolve`, then submit the returned `text` as the node's `resolved_text` input. Exported API execution graphs contain the prompt snapshot from the time of export; resubmitting them does not automatically read a newer version. In multi-user mode, include the header identifying the current ComfyUI user.
+
+#### Execution link animation
+
+Open ComfyUI settings, search for **EnhanceKit**, and enable **Execution link animation**. It is disabled by default and applies to newly submitted runs. No extra node is needed.
+
+- Once the backend confirms that an input has entered the target node's execution function, its link displays a directional flow effect for about **450 milliseconds**, preserving the existing path and color.
+- The effect means the input was delivered. It does not indicate completion, a data copy, or generation progress, and does not keep running while a node computes.
+- Fully cached execution, unrequested lazy inputs, blockers, and failures before function entry do not trigger it. A cached upstream output can still animate when it reaches a downstream node that actually executes.
+- Playback requires an exact match to the submitted canvas and link instances. Switching workflows, editing connections, or restoring nodes prevents old runs from highlighting new links. Unverified paths, including dynamic input reconstruction and ambiguous subgraphs or bypasses, stay static.
+- Turning it off, disconnecting, or receiving an error or interruption stops the effect immediately. Hidden pages do not replay past animations, and reduced-motion preferences disable playback.
+
+This feature depends on verified Python, ComfyUI execution, and canvas rendering implementations. Incompatible environments or conflicting plugin replacements disable the animation with a reason, while workflow execution continues normally. See the compatibility section below.
 
 #### Menu bar resource monitoring
 
@@ -251,7 +277,7 @@ If the extension is already installed, follow the update instructions below and 
 
 ### Settings
 
-Open ComfyUI settings and search for **`EnhanceKit`**, or go to **EnhanceKit → Resources**.
+Open ComfyUI settings and search for **`EnhanceKit`**. Resource monitoring is under **EnhanceKit → Resources**; link animation is under **EnhanceKit → ExecutionLinkFlow**.
 
 | Setting (Chinese UI label) | Default | Description |
 | --- | --- | --- |
@@ -262,6 +288,7 @@ Open ComfyUI settings and search for **`EnhanceKit`**, or go to **EnhanceKit →
 | Show GPU temperature (显示 GPU 温度) | Enabled | Show or hide the temperature card |
 | Refresh interval (刷新间隔) | 1 second | Measured in seconds; set to `0` to disable monitoring |
 | Monitored GPU (监控 GPU) | Automatic | Uses the first available NVIDIA GPU by default; an enumerated device can also be selected |
+| Execution link animation (执行连线动画) | Disabled | Shows a short flow effect only for confirmed input deliveries |
 
 ComfyUI saves these settings. Disabling all metrics hides the resource bar and stops refreshing.
 
@@ -272,6 +299,7 @@ ComfyUI saves these settings. Disabling all metrics hides the resource bar and s
 - The prompt library has been verified on Windows with ComfyUI `0.39.0` and frontend `1.55.14`, covering classic nodes, Nodes 2.0, and light and dark themes. It runs in CPU environments. The management window uses the official extension dialog API and follows the frontend theme and dialog layering. Other frontend versions have not been verified.
 - The LoRA manager has been verified with the same ComfyUI and frontend versions, covering classic nodes, Nodes 2.0, light and dark themes, old workflow restoration, copying, undo/redo, and subgraphs. Its loading chain has been tested with small CPU models, official dual text encoders, and actual queued execution, including independent CLIP strength and official text encoding. GPU image generation with full SD 1.5 / SDXL models and other frontend versions have not been verified.
 - The resource bar has been verified on Windows with NVIDIA GPUs and frontend versions `1.53.10` and `1.55.14`. Compatibility with other operating systems has not yet been verified.
+- Execution link animation has been verified on Windows with CPython `3.13.11`, ComfyUI `0.41.0` (core `c06bf5f`), and frontend `1.55.18`, in both the classic canvas and Nodes 2.0, using CPU test nodes and real queue/WebSocket traffic. This release checks the active implementations against the verified build; Python, core, or frontend upgrades may disable animation. Full model generation and arbitrary third-party executor modifications have not been verified.
 - CPU temperature and disk metrics are not provided.
 
 Direct dependencies are `psutil` and `nvidia-ml-py`; see [requirements.txt](requirements.txt). The `nvidia-ml-py` distribution provides the `pynvml` module. There is no need to install the separate distribution named `pynvml`.
