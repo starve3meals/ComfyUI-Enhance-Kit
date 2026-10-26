@@ -1,0 +1,12 @@
+{
+  "EnhanceKit_Resources_ShowCPU": { "name": "显示 CPU 利用率" },
+  "EnhanceKit_Resources_ShowMemory": { "name": "显示内存占用" },
+  "EnhanceKit_Resources_ShowGPU": { "name": "显示 GPU 利用率" },
+  "EnhanceKit_Resources_ShowVRAM": { "name": "显示显存占用" },
+  "EnhanceKit_Resources_ShowTemperature": { "name": "显示 GPU 温度" },
+  "EnhanceKit_Resources_Interval": { "name": "刷新间隔（秒，0 关闭）" },
+  "EnhanceKit_Resources_GPU": {
+    "name": "监控 GPU",
+    "options": { "Automatic (first available GPU)": "自动（首张可用 GPU）" }
+  }
+}

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { localeSettings } from './settings_helpers.mjs';
 
 const sourcePath = new URL('../../web/resource_monitor.js', import.meta.url);
 const GiB = 1024 ** 3;
@@ -182,7 +183,9 @@ function snapshot(now, changes = {}) {
     };
 }
 
-async function harness(initial = {}) {
+async function harness(initial = {}, locale = 'zh') {
+    const locales = Object.fromEntries(await Promise.all(['en', 'zh'].map(async language => [language,
+        JSON.parse(await readFile(new URL(`../../locales/${language}/settings.json`, import.meta.url), 'utf8'))])));
     const document = new Document();
     const window = new Events();
     const timers = new Timers();
@@ -203,6 +206,7 @@ async function harness(initial = {}) {
     top.append(legacy);
     document.body.append(top);
     const app = {
+        ui: { settings: localeSettings(locale) },
         menu: { element: menu, settingsGroup: { element: settingsGroup } },
         extensionManager: { setting: { settings, get: (id) => values.get(id) ?? definitions.get(id)?.defaultValue } },
         registerExtension(definition) {
@@ -257,6 +261,11 @@ async function harness(initial = {}) {
     const source = await readFile(sourcePath, 'utf8').catch((error) => { if (error.code === 'ENOENT') return ''; throw error; });
     const module = new vm.SourceTextModule(source, { context, identifier: sourcePath.href, initializeImportMeta(meta) { meta.url = sourcePath.href; } });
     await module.link(async (specifier) => {
+        if (specifier === './i18n.js') {
+            const dependency = new vm.SourceTextModule(await readFile(new URL('../../web/i18n.js', import.meta.url), 'utf8'), {context});
+            await dependency.link(name => { assert.equal(name,'../../scripts/app.js'); return new vm.SyntheticModule(['app'],function(){this.setExport('app',app);},{context}); });
+            return dependency;
+        }
         assert.ok(specifier === '../../scripts/app.js' || specifier === '../../scripts/api.js', `unexpected import: ${specifier}`);
         const dependency = specifier.endsWith('app.js') ? { app } : { api };
         return new vm.SyntheticModule(Object.keys(dependency), function () { for (const [key, value] of Object.entries(dependency)) this.setExport(key, value); }, { context });
@@ -271,16 +280,26 @@ async function harness(initial = {}) {
         await definition.onChange?.(value);
         await settle();
     };
-    // 模拟 SettingItem computed 对响应式 options 属性的依赖；普通闭包赋值不会使已开面板失效。
+    // 官方 SettingItem 按 option.text 再查翻译，当前语言缺 key 时先回退英文，最后才用原文。
+    // 同时模拟 computed 对响应式 options 和宿主语言的依赖，覆盖保持设置面板打开的场景。
     const optionsReader = (id) => {
         let cached;
         let invalidated = true;
         if (!optionsConsumers.has(id)) optionsConsumers.set(id, new Set());
         optionsConsumers.get(id).add(() => { invalidated = true; });
+        app.ui.settings.addEventListener('Comfy.Locale.change', () => { invalidated = true; });
         return () => {
             if (invalidated) {
                 const options = definitions.get(id).options;
-                cached = typeof options === 'function' ? options() : options;
+                const source = typeof options === 'function' ? options() : options;
+                const language = app.ui.settings.getSettingValue('Comfy.Locale');
+                const normalizedId = id.replaceAll('.', '_');
+                cached = source.map(option => {
+                    const text = typeof option === 'string' ? option : option.text;
+                    const key = text.replaceAll('.', '_');
+                    return { text: locales[language]?.[normalizedId]?.options?.[key] ?? locales.en[normalizedId]?.options?.[key] ?? text,
+                        value: typeof option === 'string' ? option : option.value };
+                });
                 invalidated = false;
             }
             return cached;
@@ -290,6 +309,26 @@ async function harness(initial = {}) {
     const metric = (key) => bar()?.querySelector(`[data-metric="${key}"]`);
     return { document, window, timers, requests, app, definitions, setup, change, optionsReader, bar, metric, top, legacy, menu, settingsGroup };
 }
+
+test('language changes rerender current resource values and reactive GPU options without extra requests or timers', async () => {
+    const h=await harness({},'en');await h.setup();
+    assert.equal(h.bar().getAttribute('aria-label'),'Local resource monitor');
+    assert.equal(h.metric('gpu').querySelector('.enhance-kit-resource-value').textContent,'N/A');
+    assert.match(h.metric('gpu').title,/Unavailable/);
+    h.requests[0].respond(snapshot(h.timers.now,{cpu:{utilization_percent:null}}));await settle();
+    assert.match(h.metric('cpu').textContent,/Sampling/);
+    const tasks=h.timers.tasks.size,requests=h.requests.length,value=h.metric('temperature').querySelector('.enhance-kit-resource-value');
+    const readOptions=h.optionsReader(IDs.device);assert.equal(readOptions()[0].text,'Automatic (first available GPU)');
+    const rawOptions=h.definitions.get(IDs.device).options;
+    h.app.ui.settings.setLocale('zh');
+    assert.match(h.metric('cpu').textContent,/采样中/);assert.equal(readOptions()[0].text,'自动（首张可用 GPU）');
+    assert.equal(h.definitions.get(IDs.device).options,rawOptions);
+    h.app.ui.settings.setLocale('en');
+    assert.equal(readOptions()[0].text,'Automatic (first available GPU)');assert.equal(readOptions()[1].text,'GPU 0: GPU A');
+    assert.equal(h.metric('temperature').querySelector('.enhance-kit-resource-label').textContent,'GPU temp');
+    assert.equal(h.metric('temperature').querySelector('.enhance-kit-resource-value'),value);assert.equal(value.textContent,'63°C');
+    assert.equal(h.requests.length,requests);assert.equal(h.timers.tasks.size,tasks);assert.equal(h.app.extensionManager.setting.get(IDs.device),-1);
+});
 
 test('注册设置时的回调早于 setup，仍能按保存的开关首次显示', async () => {
     const h = await harness({ [IDs.cpu]: false, [IDs.interval]: 0 });

@@ -1,0 +1,12 @@
+{
+  "EnhanceKit_Resources_ShowCPU": { "name": "Show CPU utilization" },
+  "EnhanceKit_Resources_ShowMemory": { "name": "Show memory usage" },
+  "EnhanceKit_Resources_ShowGPU": { "name": "Show GPU utilization" },
+  "EnhanceKit_Resources_ShowVRAM": { "name": "Show VRAM usage" },
+  "EnhanceKit_Resources_ShowTemperature": { "name": "Show GPU temperature" },
+  "EnhanceKit_Resources_Interval": { "name": "Refresh interval (seconds, 0 to disable)" },
+  "EnhanceKit_Resources_GPU": {
+    "name": "Monitored GPU",
+    "options": { "自动（首张可用 GPU）": "Automatic (first available GPU)" }
+  }
+}

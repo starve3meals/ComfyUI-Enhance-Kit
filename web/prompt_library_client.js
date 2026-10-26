@@ -1,4 +1,5 @@
 import { api } from "../../scripts/api.js";
+import { translate as t } from "./i18n.js";
 
 const endpoint = "/enhance-kit/prompt-library";
 
@@ -14,12 +15,18 @@ async function request(path, body, signal) {
     try {
         data = await response.json();
     } catch (cause) {
-        const error = new Error(`提示词库响应无法读取（HTTP ${response.status}），请检查服务。`, { cause });
+        const originalMessage = "提示词库响应无法读取（HTTP {status}），请检查服务。";
+        const messageValues = { status: response.status };
+        const error = new Error(t(originalMessage, messageValues), { cause });
+        Object.assign(error, { originalMessage, messageValues });
         error.status = response.status;
         throw error;
     }
     if (!response.ok) {
-        const error = new Error(data.error?.message || `提示词库请求失败（HTTP ${response.status}）。`);
+        const originalMessage = data.error?.message || "提示词库请求失败（HTTP {status}）。";
+        const messageValues = data.error?.message ? undefined : { status: response.status };
+        const error = new Error(t(originalMessage, messageValues));
+        Object.assign(error, { originalMessage, messageValues });
         error.status = response.status;
         error.code = data.error?.code;
         throw error;

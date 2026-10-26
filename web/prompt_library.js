@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { readLibrary, resolvePrompt } from "./prompt_library_client.js";
 import { openPromptLibraryManager } from "./prompt_library_manager.js";
+import { translate as t, onLocaleChanged, errorMessage } from "./i18n.js";
 
 const states = new WeakMap();
 const active = new Set();
@@ -21,6 +22,17 @@ function changed(state) {
     state.generation++;
     state.preview?.abort();
     state.text.value = "";
+    state.error = undefined;
+    if (state.text.element) state.text.element.placeholder = "";
+}
+
+function localize(state) {
+    state.text.label = t("正文预览");
+    state.category.label = t("分类");
+    state.prompt.label = t("提示词");
+    state.manage.label = t("管理提示词库");
+    if (state.text.element && state.error) state.text.element.placeholder = errorMessage(state.error);
+    state.node.setDirtyCanvas(true, true);
 }
 
 function render(state) {
@@ -61,7 +73,8 @@ async function preview(state) {
     } catch (error) {
         if (!current(state, context) || error.name === "AbortError") return;
         state.text.value = "";
-        if (state.text.element) state.text.element.placeholder = error.message;
+        state.error = error;
+        if (state.text.element) state.text.element.placeholder = errorMessage(error);
         state.node.setDirtyCanvas(true, true);
     }
 }
@@ -94,7 +107,8 @@ async function refresh() {
         for (const state of active) {
             changed(state);
             render(state);
-            if (state.text.element) state.text.element.placeholder = error.message;
+            state.error = error;
+            if (state.text.element) state.text.element.placeholder = errorMessage(error);
         }
     }
 }
@@ -106,6 +120,7 @@ app.registerExtension({
         style.rel = "stylesheet";
         style.href = new URL("./prompt_library.css", import.meta.url).href;
         document.head.append(style);
+        onLocaleChanged(() => { for (const state of active) localize(state); });
         window.addEventListener("focus", () => { loading = refresh(); });
         loading = refresh();
         await loading;
@@ -118,7 +133,7 @@ app.registerExtension({
         states.set(node, state);
         active.add(state);
         text.serialize = false;
-        text.label = "正文预览";
+        text.label = t("正文预览");
         text.dynamicPrompts = false;
         text.options.read_only = true;
         if (text.element) text.element.readOnly = true;
@@ -127,27 +142,27 @@ app.registerExtension({
             node.properties.enhanceKitPromptLibrary = { category_id: id, prompt_id: "" };
             render(state);
         }, { values: [], serialize: false,
-            getOptionLabel: (id) => library.categories.find((item) => item.id === id)?.name || (id ? "分类已删除" : "请选择分类") });
+            getOptionLabel: (id) => library.categories.find((item) => item.id === id)?.name || t(id ? "分类已删除" : "请选择分类") });
         state.prompt = node.addWidget("combo", "提示词", "", async (id) => {
             changed(state);
             node.properties.enhanceKitPromptLibrary.prompt_id = id;
             render(state);
             await preview(state);
         }, { values: [], serialize: false,
-            getOptionLabel: (id) => library.prompts.find((item) => item.id === id)?.title || (id ? "提示词已删除，请重新选择" : "请选择提示词") });
+            getOptionLabel: (id) => library.prompts.find((item) => item.id === id)?.title || t(id ? "提示词已删除，请重新选择" : "请选择提示词") });
         state.category.serialize = state.prompt.serialize = false;
-        const manage = node.addWidget("button", "管理提示词库", null, () => {
+        const manage = state.manage = node.addWidget("button", "管理提示词库", null, () => {
             const selected = node.properties.enhanceKitPromptLibrary;
             openPromptLibraryManager({ categoryId: selected.category_id, promptId: selected.prompt_id,
-                onSaved: refreshPromptLibraryNodes }).catch((error) => app.extensionManager.dialog.alert(error.message));
+                onSaved: refreshPromptLibraryNodes }).catch((error) => app.extensionManager.dialog.alert(errorMessage(error)));
         }, { serialize: false });
         manage.serialize = false;
         node.widgets = [state.category, state.prompt, ...node.widgets.filter((widget) => widget !== state.category && widget !== state.prompt)];
         text.serializeValue = async () => {
             const context = capture(state);
-            if (!context.id || !context.graph || state.owner !== context.user) throw new Error("请先选择当前用户库中的提示词。");
+            if (!context.id || !context.graph || state.owner !== context.user) throw new Error(t("请先选择当前用户库中的提示词。"));
             const resolved = await resolvePrompt(context.id);
-            if (!current(state, context)) throw new Error("提示词选择、用户或工作流已变化，请重新运行。");
+            if (!current(state, context)) throw new Error(t("提示词选择、用户或工作流已变化，请重新运行。"));
             return resolved.text;
         };
         const originalConfigure = node.onConfigure;
@@ -167,6 +182,7 @@ app.registerExtension({
             // 宿主可能重新挂载同一节点实例，需要恢复保存通知和提交校验的注册。
             changed(own);
             active.add(own);
+            localize(own);
             if (libraryOwner === api.user) {
                 own.owner = api.user;
                 render(own);
@@ -183,6 +199,7 @@ app.registerExtension({
         if (loading) await loading;
         else if (libraryOwner !== api.user) { loading = refresh(); await loading; }
         render(state);
+        localize(state);
         node.setSize([Math.max(node.size[0], 360), Math.max(node.size[1], 300)]);
     },
     async afterConfigureGraph() {

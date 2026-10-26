@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { translate as t, onLocaleChanged } from "./i18n.js";
 
 const prefix = "EnhanceKit.Resources.";
 const metrics = [
@@ -10,8 +11,8 @@ const metrics = [
     { key: "temperature", setting: "ShowTemperature", label: "GPU温度", name: "GPU 温度" },
 ];
 const legacySelector = '[data-testid="legacy-topbar-container"]';
-const unavailable = "不可用";
-const automaticGPU = { value: -1, text: "自动（首张可用 GPU）" };
+// 官方设置组件以 text 查翻译；固定原文，避免切换语言后命中错误的英文回退。
+const automaticGPU = { value: -1, text: "Automatic (first available GPU)" };
 let bar;
 let fields;
 let currentSnapshot = null;
@@ -36,13 +37,13 @@ function setting(name) {
 }
 
 function percent(value) {
-    return Number.isFinite(value) ? `${value.toFixed(1)}%` : unavailable;
+    return Number.isFinite(value) ? `${value.toFixed(1)}%` : t("不可用");
 }
 
 function capacity(memory) {
     const amount = Number.isFinite(memory?.used_bytes) && Number.isFinite(memory?.total_bytes)
         ? `${(memory.used_bytes / 1024 ** 3).toFixed(1)}/${(memory.total_bytes / 1024 ** 3).toFixed(1)} GiB`
-        : unavailable;
+        : t("不可用");
     return `${percent(memory?.utilization_percent)} ${amount}`;
 }
 
@@ -58,15 +59,15 @@ function render() {
         ? snapshot?.gpus?.find((item) => [item.utilization_percent, item.temperature_c, item.memory?.used_bytes, item.memory?.total_bytes, item.memory?.utilization_percent].some(Number.isFinite))
         : snapshot?.gpus?.find((item) => item.index === selected);
     const values = {
-        cpu: snapshot ? (samplingCPU && snapshot.cpu?.utilization_percent === null ? "采样中" : percent(snapshot.cpu?.utilization_percent)) : unavailable,
+        cpu: snapshot ? (samplingCPU && snapshot.cpu?.utilization_percent === null ? t("采样中") : percent(snapshot.cpu?.utilization_percent)) : t("不可用"),
         memory: percent(snapshot?.memory?.utilization_percent),
         gpu: percent(gpu?.utilization_percent),
-        temperature: Number.isFinite(gpu?.temperature_c) ? `${gpu.temperature_c.toFixed(0)}°C` : unavailable,
+        temperature: Number.isFinite(gpu?.temperature_c) ? `${gpu.temperature_c.toFixed(0)}°C` : t("不可用"),
         vram: percent(gpu?.memory?.utilization_percent),
     };
     const details = {
-        memory: snapshot ? capacity(snapshot.memory) : unavailable,
-        vram: gpu ? capacity(gpu.memory) : unavailable,
+        memory: snapshot ? capacity(snapshot.memory) : t("不可用"),
+        vram: gpu ? capacity(gpu.memory) : t("不可用"),
     };
     const levels = {
         cpu: snapshot?.cpu?.utilization_percent,
@@ -78,6 +79,7 @@ function render() {
     for (const metric of metrics) {
         const field = fields[metric.key];
         const value = values[metric.key];
+        field.label.textContent = t(metric.label);
         if (field.value.textContent !== value) field.value.textContent = value;
         const level = levels[metric.key];
         const width = Number.isFinite(level) ? Math.min(100, Math.max(0, level)) : 0;
@@ -86,8 +88,15 @@ function render() {
         // 温度沿用参考样式的 0–100°C 色阶；读数本身不裁剪。
         if (metric.key === "temperature") field.fill.style.backgroundColor = `color-mix(in srgb, #ff0000 ${width}%, #00ff00)`;
         const device = ["gpu", "temperature", "vram"].includes(metric.key) && gpu ? `${gpu.name} · ` : "";
-        field.element.title = `${device}${metric.name}: ${details[metric.key] ?? value}`;
+        const detail = (details[metric.key] ?? value).replaceAll(t("不可用"), t("不可用读数"));
+        field.element.title = `${device}${t(metric.name)}: ${detail}`;
     }
+}
+
+function updateGPUOptions() {
+    app.extensionManager.setting.settings[prefix + "GPU"].options = [
+        automaticGPU, ...gpuDevices.map((gpu) => ({ value: gpu.index, text: `GPU ${gpu.index}: ${gpu.name}` })),
+    ];
 }
 
 function visible() {
@@ -123,13 +132,13 @@ async function refresh() {
         const snapshot = await Promise.race([
             (async () => {
                 const response = await api.fetchApi("/enhance-kit/resources", { signal: state.controller.signal, cache: "no-store" });
-                if (!response.ok) throw new Error("资源接口不可用");
+                if (!response.ok) throw new Error(t("资源接口不可用"));
                 return await response.json();
             })(),
             new Promise((_, reject) => {
                 state.timeout = setTimeout(() => {
                     state.controller.abort();
-                    reject(new Error("资源接口超时"));
+                    reject(new Error(t("资源接口超时")));
                 }, 5000);
             }),
         ]);
@@ -145,10 +154,7 @@ async function refresh() {
             if (devices.length !== gpuDevices.length || devices.some((gpu, index) => gpu.index !== gpuDevices[index].index || gpu.name !== gpuDevices[index].name)) {
                 gpuDevices = devices.map(({ index, name }) => ({ index, name }));
                 // 替换官方响应式定义，已打开的设置面板才能收到枚举变化；不改用户选择。
-                app.extensionManager.setting.settings[prefix + "GPU"].options = [
-                    automaticGPU,
-                    ...gpuDevices.map((gpu) => ({ value: gpu.index, text: `GPU ${gpu.index}: ${gpu.name}` })),
-                ];
+                updateGPUOptions();
             }
             samplingCPU = firstSnapshot && snapshot.cpu?.utilization_percent === null;
             firstSnapshot = false;
@@ -240,7 +246,7 @@ function setup() {
     bar = document.createElement("div");
     bar.className = "enhance-kit-resources";
     bar.setAttribute("role", "group");
-    bar.setAttribute("aria-label", "本机资源监控");
+    bar.setAttribute("aria-label", t("本机资源监控"));
     fields = {};
     for (const metric of metrics) {
         const element = document.createElement("div");
@@ -251,13 +257,13 @@ function setup() {
         fill.setAttribute("aria-hidden", "true");
         const label = document.createElement("span");
         label.className = "enhance-kit-resource-label";
-        label.textContent = metric.label;
+        label.textContent = t(metric.label);
         const value = document.createElement("span");
         value.className = "enhance-kit-resource-value";
-        value.textContent = unavailable;
+        value.textContent = t("不可用");
         element.append(fill, label, value);
         bar.appendChild(element);
-        fields[metric.key] = { element, value, fill };
+        fields[metric.key] = { element, value, fill, label };
     }
     visibilityObserver = new MutationObserver(updateState);
     mountObserver = new MutationObserver((records) => {
@@ -271,6 +277,10 @@ function setup() {
     // CSS 显隐和折叠过渡会改变布局；恢复时立即采样，不按刷新周期探测菜单。
     const layoutObserver = new ResizeObserver(updateState);
     layoutObserver.observe(bar);
+    onLocaleChanged(() => {
+        bar.setAttribute("aria-label", t("本机资源监控"));
+        render();
+    });
     mount();
 }
 

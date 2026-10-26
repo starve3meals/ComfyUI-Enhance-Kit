@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { translate as t, onLocaleChanged } from "./i18n.js";
 
 const states = new WeakMap();
 const active = new Set();
@@ -84,12 +85,12 @@ function status(state) {
     state.repair.hidden = !state.error;
     state.status.dataset.error = String(Boolean(state.error));
     if (state.error) {
-        state.status.textContent = `LoRA 配置无效：${state.error} 原文已保留，可修正后应用。`;
+        state.status.textContent = t("LoRA 配置无效：{error} 原文已保留，可修正后应用。", { error: t(state.error) });
     } else if (!files.length) {
-        state.status.textContent = "暂无 LoRA 文件；放入 LoRA 目录后刷新节点定义。";
+        state.status.textContent = t("暂无 LoRA 文件；放入 LoRA 目录后刷新节点定义。");
     } else {
         const missing = state.items.filter(item => item.name && !files.includes(item.name)).length;
-        state.status.textContent = missing ? `${missing} 个文件不可用；已保留原选择，请重新选择或停用。` : "";
+        state.status.textContent = missing ? t("{count} 个文件不可用；已保留原选择，请重新选择或停用。", { count: missing }) : "";
     }
     state.status.hidden = !state.status.textContent;
 }
@@ -98,12 +99,12 @@ function selectOptions(row, item) {
     const options = [];
     const empty = element("option");
     empty.value = "";
-    empty.textContent = files.length ? "请选择 LoRA" : "暂无 LoRA 文件";
+    empty.textContent = t(files.length ? "请选择 LoRA" : "暂无 LoRA 文件");
     options.push(empty);
     if (item.name && !files.includes(item.name)) {
         const missing = element("option");
         missing.value = item.name;
-        missing.textContent = `文件不可用：${item.name}`;
+        missing.textContent = t("文件不可用：{name}", { name: item.name });
         options.push(missing);
     }
     for (const name of files) {
@@ -114,7 +115,7 @@ function selectOptions(row, item) {
     }
     row.select.replaceChildren(...options);
     row.select.value = item.name;
-    row.select.title = item.name || "请选择 LoRA 文件";
+    row.select.title = item.name || t("请选择 LoRA 文件");
     row.element.dataset.missing = String(Boolean(item.name && !files.includes(item.name)));
 }
 
@@ -141,7 +142,7 @@ function move(state, from, to) {
 
 function createRow(state, item, index) {
     const root = element("div", "enhance-kit-lora-row");
-    const drag = button("drag", "⠿", `拖拽排序第 ${index + 1} 项 LoRA`);
+    const drag = button("drag", "⠿", "");
     drag.className = "enhance-kit-lora-drag";
     drag.draggable = true;
     drag.addEventListener("dragstart", (event) => {
@@ -155,31 +156,26 @@ function createRow(state, item, index) {
     const enabled = element("input", "", "enabled");
     enabled.type = "checkbox";
     enabled.checked = item.enabled;
-    enabled.title = "启用 LoRA";
-    enabled.setAttribute("aria-label", `启用第 ${index + 1} 项 LoRA`);
     enabled.addEventListener("change", () => change(state, () => { item.enabled = enabled.checked; }));
     const select = element("select", "", "name");
-    select.setAttribute("aria-label", `第 ${index + 1} 项 LoRA 文件`);
-    const row = { element: root, select };
+    const row = { element: root, select, drag, enabled };
     selectOptions(row, item);
     select.addEventListener("change", () => change(state, () => {
         item.name = select.value;
-        select.title = item.name || "请选择 LoRA 文件";
+        select.title = item.name || t("请选择 LoRA 文件");
         root.dataset.missing = String(Boolean(item.name && !files.includes(item.name)));
     }));
     const strengths = [];
-    for (const [field, title] of [["strength", "模型"], ["clip_strength", "CLIP"]]) {
+    for (const field of ["strength", "clip_strength"]) {
         const strength = element("input", "", field);
         strength.type = "number";
         strength.min = "-100";
         strength.max = "100";
         strength.step = "0.01";
         strength.value = String(item[field]);
-        strength.title = `${title}强度（步长 0.01）`;
-        strength.setAttribute("aria-label", `第 ${index + 1} 项${title}强度`);
         strength.addEventListener("input", () => {
             const value = strength.value.trim() === "" ? NaN : Number(strength.value);
-            strength.setCustomValidity(Number.isFinite(value) ? "" : "请输入有限数值。");
+            strength.setCustomValidity(Number.isFinite(value) ? "" : t("请输入有限数值。"));
             if (Number.isFinite(value) && value !== item[field]) change(state, () => { item[field] = value; });
         });
         strength.addEventListener("blur", () => {
@@ -189,14 +185,14 @@ function createRow(state, item, index) {
         strengths.push(strength);
     }
     const arrows = element("div", "enhance-kit-lora-moves");
-    const up = button("up", "↑", `上移第 ${index + 1} 项 LoRA`);
-    const down = button("down", "↓", `下移第 ${index + 1} 项 LoRA`);
+    const up = button("up", "↑", "");
+    const down = button("down", "↓", "");
     up.disabled = index === 0;
     down.disabled = index === state.items.length - 1;
     up.addEventListener("click", () => move(state, index, index - 1));
     down.addEventListener("click", () => move(state, index, index + 1));
     arrows.append(up, down);
-    const remove = button("delete", "×", `删除第 ${index + 1} 项 LoRA（保留磁盘文件）`);
+    const remove = button("delete", "×", "");
     remove.addEventListener("click", () => change(state, () => { state.items.splice(index, 1); }, true));
     root.addEventListener("dragover", (event) => {
         event.preventDefault();
@@ -209,7 +205,41 @@ function createRow(state, item, index) {
         if (state.dragIndex !== null) move(state, state.dragIndex, index);
     });
     root.append(drag, enabled, select, ...strengths, arrows, remove);
+    Object.assign(row, { strengths, up, down, remove });
+    localizeRow(row, index);
     return row;
+}
+
+function localizeRow(row, index) {
+    const values = { index: index + 1 };
+    for (const [control, message] of [[row.drag, "拖拽排序第 {index} 项 LoRA"],
+        [row.up, "上移第 {index} 项 LoRA"], [row.down, "下移第 {index} 项 LoRA"],
+        [row.remove, "删除第 {index} 项 LoRA（保留磁盘文件）"]]) {
+        control.title = t(message, values);
+        control.setAttribute("aria-label", control.title);
+    }
+    row.enabled.title = t("启用 LoRA");
+    row.enabled.setAttribute("aria-label", t("启用第 {index} 项 LoRA", values));
+    row.select.setAttribute("aria-label", t("第 {index} 项 LoRA 文件", values));
+    row.strengths.forEach((input, position) => {
+        const title = position === 0 ? "模型" : "CLIP";
+        input.title = t(`${title}强度（步长 0.01）`);
+        input.setAttribute("aria-label", t(`第 {index} 项${title}强度`, values));
+        if (input.validationMessage) input.setCustomValidity(t("请输入有限数值。"));
+    });
+}
+
+function localize(state) {
+    state.header.children[0].textContent = t("LoRA名称");
+    state.header.children[1].textContent = t("模型强度");
+    state.header.children[2].textContent = t("CLIP强度");
+    state.rawInput.setAttribute("aria-label", t("原始 LoRA 配置 JSON"));
+    for (const [control, text, title] of [[state.apply, "应用修正配置", "应用修正后的 LoRA 配置 JSON"], [state.add, "+ 添加 LoRA", "添加一项 LoRA"]]) {
+        control.textContent = t(text); control.title = t(title); control.setAttribute("aria-label", control.title);
+    }
+    state.rows.forEach((row, index) => { selectOptions(row, state.items[index]); localizeRow(row, index); });
+    status(state);
+    state.node.setDirtyCanvas(true, true);
 }
 
 function render(state) {
@@ -278,9 +308,10 @@ app.registerExtension({
         repair.append(rawInput, apply);
         const add = button("add", "+ 添加 LoRA", "添加一项 LoRA");
         root.append(list, message, repair, add);
-        const state = { node, root, list, header, status: message, repair, rawInput, add, items: [], rows: [], raw: value, error: "", dragIndex: null };
+        const state = { node, root, list, header, status: message, repair, rawInput, add, apply, items: [], rows: [], raw: value, error: "", dragIndex: null };
         states.set(node, state);
         active.add(state);
+        state.unsubscribe = onLocaleChanged(() => localize(state));
         add.addEventListener("click", () => change(state, () => {
             state.items.push({ name: files[0] ?? "", enabled: true, strength: 1, clip_strength: 0 });
         }, true));
@@ -326,6 +357,7 @@ app.registerExtension({
         const removed = widget.onRemove;
         widget.onRemove = function (...args) {
             active.delete(state);
+            state.unsubscribe?.(); state.unsubscribe = undefined;
             state.dragIndex = null;
             return removed?.apply(this, args);
         };
@@ -334,8 +366,10 @@ app.registerExtension({
             const result = added?.apply(this, args);
             original.onRemove?.();
             active.add(state);
+            state.unsubscribe ??= onLocaleChanged(() => localize(state));
             state.rows.forEach((row, index) => selectOptions(row, state.items[index]));
             status(state);
+            localize(state);
             attachElement(state);
             return result;
         };
@@ -349,6 +383,7 @@ app.registerExtension({
             return result;
         };
         restore(state, value);
+        localize(state);
         attachElement(state);
     },
 });

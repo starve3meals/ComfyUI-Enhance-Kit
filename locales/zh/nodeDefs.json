@@ -1,0 +1,20 @@
+{
+  "EnhanceKitPromptLibrary": {
+    "display_name": "提示词库（EnhanceKit）",
+    "description": "按分类选择共享提示词，运行时获取最新正文。使用管理按钮维护提示词库。",
+    "inputs": {
+      "resolved_text": { "name": "正文预览", "tooltip": "所选提示词正文；提交前解析最新已保存正文。" }
+    },
+    "outputs": { "0": { "name": "提示词", "tooltip": "本次执行解析出的提示词正文。" } }
+  },
+  "EnhanceKitLoraManager": {
+    "display_name": "LoRA 管理器（EnhanceKit）",
+    "description": "按列表顺序应用 LoRA，模型与 CLIP 强度独立。使用非零 CLIP 强度时需接入 CLIP。",
+    "inputs": {
+      "model": { "name": "模型" },
+      "loras": { "name": "LoRA 列表", "tooltip": "保存在当前工作流中的有序 LoRA 配置。" },
+      "clip": { "name": "CLIP", "tooltip": "启用项使用非零 CLIP 强度时必须连接。" }
+    },
+    "outputs": { "0": { "name": "模型" }, "1": { "name": "CLIP" } }
+  }
+}

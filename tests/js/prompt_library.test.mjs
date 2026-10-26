@@ -2,6 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadLibrary,choose,widget,deferred,response} from './prompt_library_helpers.mjs';
 
+test('locale changes update node labels while preserving prompt references and user content',async()=>{
+  const world=await loadLibrary({locale:'en'});await world.extension.setup();
+  const node=await world.node();await choose(node);node.title='我的自定义标题';
+  assert.equal(widget(node,'分类').label,'Category');
+  assert.equal(widget(node,'提示词').options.getOptionLabel('portrait'),'人物');
+  const requests=world.requests.length;
+  world.app.ui.settings.setLocale('zh-CN');
+  assert.equal(widget(node,'分类').label,'分类');
+  world.app.ui.settings.setLocale('fr');
+  assert.equal(widget(node,'resolved_text').label,'Text preview');
+  assert.equal(widget(node,'管理提示词库').label,'Manage prompt library');
+  assert.equal(node.properties.enhanceKitPromptLibrary.prompt_id,'portrait');
+  assert.equal(widget(node,'resolved_text').value,'原正文');assert.equal(node.title,'我的自定义标题');
+  assert.equal(world.requests.length,requests);
+});
+
+test('a node detached during a locale change refreshes its labels when reattached',async()=>{
+  const world=await loadLibrary();await world.extension.setup();
+  const node=await world.node();await choose(node);node.onRemoved();
+  world.app.ui.settings.setLocale('en');node.onAdded();
+  assert.equal(widget(node,'分类').label,'Category');
+  assert.equal(widget(node,'resolved_text').value,'原正文');
+});
+
 test('category filters titles and explicit category switch clears selection',async()=>{
   const world=await loadLibrary(); await world.extension.setup();
   const node=await world.node(); await choose(node);

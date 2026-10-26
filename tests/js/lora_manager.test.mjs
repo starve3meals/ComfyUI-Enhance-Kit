@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadLoraManager, widget, rows, control, config, click, edit, event } from './lora_manager_helpers.mjs';
 
+test('locale updates LoRA controls in place without replacing focused input or serialized values', async () => {
+  const world=await loadLoraManager(undefined,{locale:'en'}),node=await world.node();click(node,'add');
+  assert.equal(control(node,'add').textContent,'+ Add LoRA');
+  const strength=edit(node,'strength','0.',0,'input');strength.focus();
+  const saved=widget(node).value,select=control(node,'name',0);
+  world.app.ui.settings.setLocale('zh-TW');
+  assert.equal(control(node,'add').textContent,'+ 添加 LoRA');
+  assert.equal(control(node,'strength',0),strength);assert.equal(strength.value,'0.');assert.equal(world.document.activeElement,strength);
+  assert.equal(control(node,'name',0),select);assert.equal(select.value,'a.safetensors');assert.equal(widget(node).value,saved);
+  world.app.ui.settings.setLocale('en');
+  assert.match(strength.getAttribute('aria-label'),/Model strength/);
+  node.onRemoved();assert.equal(world.app.ui.settings.localeListenerCount(),0);
+  node.onAdded();assert.equal(control(node,'add').textContent,'+ Add LoRA');
+});
+
 test('replaces the STRING widget with one serialized JSON entry and disposes the old DOM widget', async () => {
   const world = await loadLoraManager(); const node = await world.node();
   assert.equal(node.widgets.length, 1);

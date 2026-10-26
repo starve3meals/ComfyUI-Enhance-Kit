@@ -1,10 +1,12 @@
 # ComfyUI-Enhance-Kit
 
-[简体中文](#简体中文) | [English](#english)
+**简体中文** | [English](README.en.md)
 
 ## 简体中文
 
 ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示词库**和**菜单栏资源监控**。可以在一个节点中组合多项 LoRA、在多个工作流中维护常用提示词，以及查看主机资源状态。扩展不附带模型。
+
+界面支持简体中文和英文，跟随 ComfyUI 的语言设置切换。用户保存的分类名、提示词标题和正文，以及 LoRA 文件名保留原文。
 
 ### 工作流示例
 
@@ -126,6 +128,7 @@ git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\cust
 
 ### 支持范围
 
+- 中英文界面与语言切换已在前端 `1.55.18` 的传统节点和 Nodes 2.0 验证。
 - GPU 指标通过 NVML 采集，目前支持 NVIDIA GPU，需要可用的 NVIDIA 驱动。
 - 没有可用的 NVIDIA GPU 时，CPU 和内存仍可显示；GPU 相关项显示“不可用”。
 - 提示词库已在 Windows、ComfyUI `0.39.0`、前端 `1.55.14` 验证，覆盖传统节点、Nodes 2.0 及深浅色主题；可在 CPU 环境运行。管理窗口使用官方扩展弹窗 API，跟随前端主题与弹窗层级。其他前端版本尚未验证。
@@ -168,172 +171,3 @@ git pull --ff-only
 资源条布局与配色参考 [ComfyUI-Crystools](https://github.com/crystian/ComfyUI-Crystools)。
 
 本项目采用 [Apache-2.0](LICENSE) 许可证。
-
----
-
-## English
-
-A lightweight utility extension for ComfyUI with a **LoRA manager**, a **categorized prompt library**, and **menu bar resource monitoring**. Combine multiple LoRAs in one node, maintain reusable prompts across workflows, and monitor host resources. No models are bundled with the extension.
-
-### Workflow example
-
-![Prompt library and LoRA manager connected in a ComfyUI workflow](assets/workflow-overview.jpg)
-
-Connect the prompt library to a CLIP text encoding node, and route the model and CLIP through the LoRA manager to the sampler and text encoding nodes. File names and prompts are illustrative; supply your own compatible models and LoRAs.
-
-### Features
-
-#### LoRA manager
-
-Search for **LoRA 管理器（EnhanceKit）** (LoRA Manager), or add the node from `EnhanceKit → Model`.
-
-![LoRA manager with file selection, enable toggles, model and CLIP strengths, and ordering controls](assets/lora-manager.jpg)
-
-1. Connect the loader's `MODEL` output to the node's `model` input, then connect its `model` output to your sampler.
-2. Click **添加 LoRA** (Add LoRA), select a file, and set its model and CLIP strengths. The defaults are `1` and `0`. Add more entries as needed; the same file can be selected multiple times.
-3. Use the checkbox to enable or disable an entry, and `×` to remove it. Drag the handle on the left to reorder entries, or use the up and down arrows.
-4. To apply text encoder patches, connect the loader's `CLIP` output to the node's `clip` input. Connect the node's `clip` output to the text encoding nodes for your positive and negative prompts, and adjust the relevant LoRA's CLIP strength.
-
-Enabled entries are applied from top to bottom. Both strengths support negative values. Disabled entries and entries with both strengths set to `0` do not read their files. A part with zero strength retains its original object. An empty list, or a list with all entries skipped, returns the original model and the connected CLIP. Removing an entry does not delete the LoRA file from disk.
-
-- **CLIP input is optional**: its default strength is `0`, so existing MODEL-only workflows continue to work. Old entries without a CLIP strength are restored with `0`. An enabled entry with a nonzero CLIP strength requires a connected CLIP input; execution reports an error if it is missing.
-- Set model strength to `0` and CLIP strength to a nonzero value to apply only text encoder patches. Whether a LoRA includes these weights depends on how it was trained and saved.
-- Files are selected from ComfyUI's LoRA directories, usually `models/loras`. LoRA directories configured in `extra_model_paths.yaml` are also supported. Refresh node definitions after adding files; restart ComfyUI and refresh the browser if needed.
-- File selections, enabled states, strengths, and ordering are saved with the workflow. **Workflows do not contain LoRA files**. Copy the files separately when migrating, and preserve their relative paths.
-- Unavailable files retain their selections and display a message. An enabled entry with a nonzero strength must be assigned a valid file or disabled, otherwise execution fails.
-
-Ordinary LoRAs add fixed weight deltas, so changing their order usually does not change the mathematical result, although floating-point calculations may differ slightly. Patches such as DoRA that depend on current weights may be affected by ordering. This node uses ComfyUI's official loading and patching mechanisms; compatibility depends on the base model and selected LoRAs.
-
-#### Categorized prompt library
-
-Search for **提示词库（EnhanceKit）** (Prompt Library), or add the node from `EnhanceKit → Prompt`.
-
-![Prompt library node with category and title selection and a read-only text preview](assets/prompt-library-node.jpg)
-
-1. Click **管理提示词库** (Manage Prompt Library) and create a category.
-2. Create a prompt, enter its title and text, and save it. Organize categories by model, task, or your own preferences.
-3. Select a category and prompt title in the node. Connect its `prompt` output to a text input that accepts `STRING`, such as the text input of a CLIP text encoding node.
-
-![Prompt library manager with categories, prompt titles, and a text editor](assets/prompt-library-manager.jpg)
-
-The node uses standard dropdowns, a read-only text preview, and buttons. Workflows belonging to the same ComfyUI user share a prompt library; separate user profiles maintain separate libraries. Category names are unique within a library, and prompt titles are unique within a category. Different categories may use the same title.
-
-- Runs submitted from the UI read the latest prompt text from the library. Once queued, that run uses a fixed snapshot.
-- Renaming or moving a prompt preserves its reference. After deletion, select another prompt; execution does not use the old preview or substitute a different entry.
-- Prompt text may be empty. Dynamic prompt syntax such as `{a|b}` is not expanded. Changing only the title or category preserves the text and its line breaks; when editing the text, line breaks follow the browser text area's format.
-- Unsaved edits can be saved, discarded, or canceled. If another page has updated the library, a conflict is shown. Refresh and review the changes before saving; edits are not overwritten automatically.
-
-Data is stored at `enhance-kit/prompt-library.json` inside the ComfyUI user directory, normally `ComfyUI/user/default/enhance-kit/prompt-library.json`. Copy this file separately for backup or migration: **workflow files store entry IDs, not the prompt library**. A single ComfyUI server process should manage each library file.
-
-API clients should first POST `{"prompt_id":"entry-id"}` to `/enhance-kit/prompt-library/resolve`, then submit the returned `text` as the node's `resolved_text` input. Exported API execution graphs contain the prompt snapshot from the time of export; resubmitting them does not automatically read a newer version. In multi-user mode, include the header identifying the current ComfyUI user.
-
-#### Menu bar resource monitoring
-
-Compact colored cards display live resource readings:
-
-![Resource monitor showing CPU, RAM, GPU, VRAM usage, and GPU temperature](assets/resource-monitor.png)
-
-| Metric | Display |
-| --- | --- |
-| CPU | Overall host CPU utilization |
-| RAM | Physical memory usage percentage; hover for used and total capacity |
-| GPU | Utilization of the selected NVIDIA GPU |
-| VRAM | GPU memory usage percentage; hover for used and total capacity |
-| GPU temperature | Temperature in Celsius; hover for the device name |
-
-- Refreshes every second by default. Toggle metrics individually, adjust the refresh interval, and select a GPU.
-- Refreshing pauses when the page or resource bar is hidden and resumes with fresh data when it becomes visible.
-- Scroll horizontally within the resource bar in narrow windows.
-- Unavailable data or a disconnected server is explicitly shown as unavailable. Updates resume automatically when the connection returns.
-- At runtime, the extension communicates only with the current ComfyUI server and does not upload resource data.
-
-CPU and RAM readings cover the whole host. GPU and VRAM readings include other processes and do not represent ComfyUI's exclusive usage. When accessing ComfyUI remotely, the readings describe the server host.
-
-### Installation
-
-Git is required. Choose the commands that match your ComfyUI installation.
-
-#### Standard installation (venv / Conda)
-
-Activate the Python environment used to run ComfyUI, then open a terminal in the **ComfyUI root directory** and run:
-
-```sh
-git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git custom_nodes/ComfyUI-Enhance-Kit
-python -m pip install -r custom_nodes/ComfyUI-Enhance-Kit/requirements.txt
-```
-
-The `python` command must use the environment that runs ComfyUI.
-
-#### Windows portable installation
-
-Open PowerShell in the **portable installation root directory**, which contains the `ComfyUI` and `python_embeded` folders, and run:
-
-```powershell
-git clone https://github.com/starve3meals/ComfyUI-Enhance-Kit.git .\ComfyUI\custom_nodes\ComfyUI-Enhance-Kit
-.\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\ComfyUI-Enhance-Kit\requirements.txt
-```
-
-After installation, **restart ComfyUI and refresh your browser**. The resource bar appears in the menu bar. Add the LoRA manager or prompt library nodes as described above.
-
-If the extension is already installed, follow the update instructions below and avoid keeping multiple copies in `custom_nodes`. For other installation methods, see the [official ComfyUI custom node installation guide](https://docs.comfy.org/installation/install_custom_node).
-
-### Settings
-
-Open ComfyUI settings and search for **`EnhanceKit`**, or go to **EnhanceKit → Resources**.
-
-| Setting (Chinese UI label) | Default | Description |
-| --- | --- | --- |
-| Show CPU utilization (显示 CPU 利用率) | Enabled | Show or hide the CPU card |
-| Show memory usage (显示内存占用) | Enabled | Show or hide the RAM card |
-| Show GPU utilization (显示 GPU 利用率) | Enabled | Show or hide the GPU card |
-| Show VRAM usage (显示显存占用) | Enabled | Show or hide the VRAM card |
-| Show GPU temperature (显示 GPU 温度) | Enabled | Show or hide the temperature card |
-| Refresh interval (刷新间隔) | 1 second | Measured in seconds; set to `0` to disable monitoring |
-| Monitored GPU (监控 GPU) | Automatic | Uses the first available NVIDIA GPU by default; an enumerated device can also be selected |
-
-ComfyUI saves these settings. Disabling all metrics hides the resource bar and stops refreshing.
-
-### Compatibility
-
-- GPU metrics are collected through NVML. NVIDIA GPUs are currently supported, with a working NVIDIA driver required.
-- Without an available NVIDIA GPU, CPU and RAM readings remain available; GPU-related metrics are shown as unavailable.
-- The prompt library has been verified on Windows with ComfyUI `0.39.0` and frontend `1.55.14`, covering classic nodes, Nodes 2.0, and light and dark themes. It runs in CPU environments. The management window uses the official extension dialog API and follows the frontend theme and dialog layering. Other frontend versions have not been verified.
-- The LoRA manager has been verified with the same ComfyUI and frontend versions, covering classic nodes, Nodes 2.0, light and dark themes, old workflow restoration, copying, undo/redo, and subgraphs. Its loading chain has been tested with small CPU models, official dual text encoders, and actual queued execution, including independent CLIP strength and official text encoding. GPU image generation with full SD 1.5 / SDXL models and other frontend versions have not been verified.
-- The resource bar has been verified on Windows with NVIDIA GPUs and frontend versions `1.53.10` and `1.55.14`. Compatibility with other operating systems has not yet been verified.
-- CPU temperature and disk metrics are not provided.
-
-Direct dependencies are `psutil` and `nvidia-ml-py`; see [requirements.txt](requirements.txt). The `nvidia-ml-py` distribution provides the `pynvml` module. There is no need to install the separate distribution named `pynvml`.
-
-### Updating
-
-Run the following command in `ComfyUI/custom_nodes/ComfyUI-Enhance-Kit`:
-
-```sh
-git pull --ff-only
-```
-
-Then update dependencies according to `requirements.txt` using the Python environment that runs ComfyUI, restart ComfyUI, and refresh your browser.
-
-### Troubleshooting
-
-**The resource bar does not appear after installation.**
-
-Check that ComfyUI has been restarted, dependencies were installed in the correct Python environment, and startup logs contain no import errors for this extension. Make sure the menu is visible, Focus Mode is off, the refresh interval is greater than `0`, and at least one metric is enabled. A hard browser refresh may help after frontend files have been updated.
-
-**GPU metrics are shown as unavailable.**
-
-Check that you have an NVIDIA GPU, a working driver, and `nvidia-ml-py` installed in the ComfyUI environment. Some devices may not support particular metrics; a failure to read one metric does not prevent the others from working.
-
-**The readings differ from the resources used by my workflow.**
-
-Readings cover the whole host or GPU, including the browser, other applications, and other GPU processes. RAM and VRAM capacities use GiB, where `1 GiB = 1024³ bytes`.
-
-### Feedback
-
-Please open an [issue](https://github.com/starve3meals/ComfyUI-Enhance-Kit/issues) with your ComfyUI and frontend versions, operating system, and relevant error logs. For resource monitoring issues, also include your GPU model.
-
-### Acknowledgments and license
-
-The resource bar's layout and colors were inspired by [ComfyUI-Crystools](https://github.com/crystian/ComfyUI-Crystools).
-
-This project is licensed under [Apache-2.0](LICENSE).

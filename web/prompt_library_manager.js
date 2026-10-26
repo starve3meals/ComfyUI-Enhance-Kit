@@ -1,6 +1,7 @@
 import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
 import { readLibrary, mutateLibrary } from "./prompt_library_client.js";
+import { translate as t, onLocaleChanged, errorMessage } from "./i18n.js";
 
 let opened;
 
@@ -18,8 +19,13 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     if (opened) { opened.element.focus(); return opened.done; }
     const root = element("section", undefined, "enhance-kit-prompt-library");
     root.tabIndex = -1;
-    root.append(element("p", "同一用户的工作流共享此库；节点运行时读取最新正文。", "ek-description"));
-    const status = element("p", "正在读取…", "ek-status");
+    const description = element("p", undefined, "ek-description");
+    root.append(description);
+    const heading = element("h2", undefined, "enhance-kit-prompt-library-title");
+    heading.id = "extension-enhance-kit-prompt-library";
+    const status = element("p", undefined, "ek-status");
+    let statusText = () => t("正在读取…");
+    function setStatus(message) { statusText = typeof message === "function" ? message : () => t(message); status.textContent = statusText(); }
     status.setAttribute("role", "status");
     root.append(status);
     const columns = element("div", undefined, "ek-columns");
@@ -33,12 +39,14 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     question.hidden = true;
     root.append(question, footer);
     const controls = {};
+    const captions = {};
     function control(parent, tag, name, label) {
         const node = element(tag);
         node.dataset.action = name;
-        node.setAttribute("aria-label", label);
-        if (tag === "button") { node.type = "button"; node.textContent = label; }
-        else parent.append(element("label", label));
+        node.dataset.message = label;
+        node.setAttribute("aria-label", t(label));
+        if (tag === "button") { node.type = "button"; node.textContent = t(label); }
+        else { captions[name] = element("label", t(label)); parent.append(captions[name]); }
         parent.append(node);
         controls[name] = node;
         return node;
@@ -58,20 +66,37 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     const text = control(editor, "textarea", "text", "正文"); text.rows = 14;
     const save = control(editor, "button", "save", "保存提示词");
     const latest = element("details"); latest.hidden = true;
-    const latestText = element("pre"); latest.append(element("summary", "库中的当前正文（供冲突核对）"), latestText); editor.append(latest);
+    const latestSummary = element("summary");
+    const latestText = element("pre"); latest.append(latestSummary, latestText); editor.append(latest);
     const refresh = control(footer, "button", "refresh", "刷新库（保留编辑）");
     const close = control(footer, "button", "close", "关闭");
     let library = { revision: 0, categories: [], prompts: [] };
     let selectedCategory = categoryId, selectedPrompt = promptId;
     let original = { category_id: "", title: "", text: "" };
     let originalTextDisplay = "";
-    let alive = true, loaded = false, busy, askResolve, readGeneration = 0;
+    let alive = true, loaded = false, busy, askResolve, questionMessage, readGeneration = 0;
     const owner = api.user;
     const readController = new AbortController();
     let finish;
     const done = new Promise((resolve) => { finish = resolve; });
     const current = { element: root, done };
     opened = current;
+
+    function localize() {
+        heading.textContent = t("分类提示词库");
+        description.textContent = t("同一用户的工作流共享此库；节点运行时读取最新正文。");
+        latestSummary.textContent = t("库中的当前正文（供冲突核对）");
+        status.textContent = statusText();
+        for (const [name, node] of Object.entries(controls)) {
+            const message = node.dataset.message;
+            node.setAttribute("aria-label", t(message));
+            if (node.tagName === "BUTTON") node.textContent = t(message);
+            else captions[name].textContent = t(message);
+        }
+        if (askResolve) question.children[0].textContent = t(questionMessage);
+    }
+    const unsubscribe = onLocaleChanged(localize);
+    localize();
 
     function valid() { return alive && api.user === owner; }
     function draft() {
@@ -117,7 +142,8 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     }
     function ask(message, choices) {
         if (askResolve) return Promise.resolve("cancel");
-        question.replaceChildren(element("p", message)); question.hidden = false;
+        questionMessage = message;
+        question.replaceChildren(element("p", t(message))); question.hidden = false;
         return new Promise((resolve) => {
             askResolve = resolve;
             for (const [value, label, action] of choices) {
@@ -143,10 +169,10 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
                 library = updated;
                 after();
                 onSaved?.(updated);
-                status.textContent = "已保存";
+                setStatus("已保存");
                 return true;
             } catch (error) {
-                if (valid()) status.textContent = error.status === 409 ? "库已被其他页面更新；请刷新并核对后保存，编辑内容已保留。" : error.message;
+                if (valid()) setStatus(error.status === 409 ? "库已被其他页面更新；请刷新并核对后保存，编辑内容已保留。" : () => errorMessage(error));
                 return false;
             }
         })();
@@ -175,13 +201,13 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
                 renderLists(); target.value = value.category_id; title.value = value.title; text.value = value.text;
                 const item = library.prompts.find((item) => item.id === selectedPrompt);
                 latest.hidden = !item; latestText.textContent = item?.text ?? "";
-                status.textContent = "已刷新；编辑内容保留，请核对后保存。";
+                setStatus("已刷新；编辑内容保留，请核对后保存。");
             } else {
                 select(selectedCategory, selectedPrompt);
-                status.textContent = library.categories.length ? "请选择或新增提示词" : "请先新增分类";
+                setStatus(library.categories.length ? "请选择或新增提示词" : "请先新增分类");
             }
             updateDisabled();
-        } catch (error) { if (valid() && generation === readGeneration) { status.textContent = error.message; refresh.disabled = false; } }
+        } catch (error) { if (valid() && generation === readGeneration) { setStatus(() => errorMessage(error)); refresh.disabled = false; } }
     }
     async function transition(operation) {
         if (busy || askResolve || !valid()) return;
@@ -212,9 +238,11 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     function cleanup() {
         if (!alive) return;
         alive = false; readController.abort();
+        unsubscribe();
         askResolve?.("cancel"); askResolve = undefined;
         window.removeEventListener("focus", userChanged);
         root.remove();
+        heading.remove();
         if (opened === current) opened = undefined;
         finish();
     }
@@ -232,7 +260,13 @@ export function openPromptLibraryManager({ categoryId = "", promptId = "", onSav
     window.addEventListener("focus", userChanged);
     const { closeDialog } = app.extensionManager.dialog.showExtensionDialog({
         key: "extension-enhance-kit-prompt-library",
-        title: "分类提示词库",
+        title: t("分类提示词库"),
+        headerComponent: {
+            inheritAttrs: false,
+            render() { return null; },
+            mounted() { if (alive) this.$el.before(heading); },
+            beforeUnmount() { heading.remove(); },
+        },
         component: {
             inheritAttrs: false,
             render() { return null; },

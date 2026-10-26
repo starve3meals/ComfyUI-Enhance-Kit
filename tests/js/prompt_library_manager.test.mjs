@@ -8,6 +8,30 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function open(world){const done=world.module.namespace.openPromptLibraryManager({categoryId:'cat',promptId:'portrait',onSaved:()=>{}});await new Promise(resolve=>setImmediate(resolve));return done;}
 async function input(world,name,value){const element=control(world,name);element.value=value;element.oninput?.();}
 
+test('open manager translates in place through confirmation and conflict without losing focused draft',async()=>{
+  const world=await loadLibrary({entry:'prompt_library_manager.js',locale:'en'});
+  const done=open(world);await tick();
+  assert.equal(control(world,'save').textContent,'Save prompt');
+  const editor=control(world,'text');editor.value='未保存正文';editor.selectionStart=3;editor.selectionEnd=4;editor.scrollTop=25;editor.focus();
+  const closing=close(world);await tick();
+  assert.equal(control(world,'cancel-dirty').textContent,'Cancel');
+  const requests=world.requests.length;
+  world.app.ui.settings.setLocale('zh');
+  assert.equal(control(world,'cancel-dirty').textContent,'取消');
+  assert.equal(control(world,'text'),editor);assert.equal(editor.value,'未保存正文');
+  assert.equal(editor.selectionStart,3);assert.equal(editor.scrollTop,25);assert.equal(world.document.activeElement,editor);
+  assert.equal(control(world,'title').value,'人物');assert.equal(control(world,'category').children[0].textContent,'写实');
+  assert.equal(world.requests.length,requests);
+  await control(world,'cancel-dirty').onclick();await closing;
+  world.api.fetchApi=async()=>response({error:{code:'revision_conflict',message:'库已更新'}},409);
+  await control(world,'save').onclick();
+  world.app.ui.settings.setLocale('en');
+  assert.match(world.dialog.element.querySelectorAll('p').map(p=>p.textContent).join(' '),/another page/);
+  assert.equal(world.dialog.element.querySelectorAll('h2')[0].textContent,'Categorized prompt library');
+  const discard=close(world);await tick();await control(world,'discard-dirty').onclick();await discard;await done;
+  assert.equal(world.app.ui.settings.localeListenerCount(),0);
+});
+
 test('opening locates reference, renders text and cancel retains dirty draft',async()=>{
   const world=await loadLibrary({entry:'prompt_library_manager.js'});const done=open(world);await new Promise(r=>setImmediate(r));
   assert.equal(control(world,'title').value,'人物');

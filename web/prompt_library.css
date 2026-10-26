@@ -1,6 +1,7 @@
 .enhance-kit-prompt-library {
     font-family: inherit;
 }
+.enhance-kit-prompt-library-title { font-size: 1.25rem; margin: 0; }
 .enhance-kit-prompt-library-dialog-content {
     width: min(1080px, 94vw);
     max-height: 90vh;

@@ -95,6 +95,13 @@ class LoraManagerTests(unittest.TestCase):
         self.assertEqual(self.node.FUNCTION, "apply_loras")
         self.assertEqual(self.node.CATEGORY, "EnhanceKit/Model")
 
+    def test_invalid_configuration_diagnostic_is_readable_in_both_languages(self):
+        with self.assertRaises(ValueError) as caught:
+            self.node.apply_loras(self.model, "not json")
+        self.assertIn("不是有效的 JSON", str(caught.exception))
+        self.assertIn("not valid JSON", str(caught.exception))
+        self.assertEqual(self.reads, [])
+
     def test_empty_and_skipped_entries_return_original_without_filesystem_access(self):
         for config in (self.config(), self.config(self.item("../missing", enabled=False), self.item("", strength=0))):
             with self.subTest(config=config):

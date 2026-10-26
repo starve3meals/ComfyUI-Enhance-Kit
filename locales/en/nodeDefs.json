@@ -1,0 +1,20 @@
+{
+  "EnhanceKitPromptLibrary": {
+    "display_name": "Prompt Library (EnhanceKit)",
+    "description": "Select a shared prompt by category and read its latest text when run. Use the manage button to maintain the library.",
+    "inputs": {
+      "resolved_text": { "name": "Text preview", "tooltip": "The selected prompt text. The latest saved text is resolved before submission." }
+    },
+    "outputs": { "0": { "name": "prompt", "tooltip": "The prompt text resolved for this execution." } }
+  },
+  "EnhanceKitLoraManager": {
+    "display_name": "LoRA Manager (EnhanceKit)",
+    "description": "Apply an ordered LoRA list with independent model and CLIP strengths. Connect CLIP when using a nonzero CLIP strength.",
+    "inputs": {
+      "model": { "name": "model" },
+      "loras": { "name": "LoRA list", "tooltip": "Ordered LoRA configuration stored in this workflow." },
+      "clip": { "name": "clip", "tooltip": "Required when an enabled LoRA has a nonzero CLIP strength." }
+    },
+    "outputs": { "0": { "name": "model" }, "1": { "name": "clip" } }
+  }
+}

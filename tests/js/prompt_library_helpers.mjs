@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { localeSettings } from './settings_helpers.mjs';
 
 export const fixture = () => ({ schema_version: 1, revision: 2,
   categories: [{id:'cat',name:'写实'},{id:'video',name:'视频'}],
@@ -21,16 +22,17 @@ class Element extends EventTarget {
   replaceChildren(...children) { this.children=[];this.append(...children); }
   remove() { if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);this.parent=undefined; }
   setAttribute(key,value) { this[key]=value; }
-  focus() { this.focused=true; }
+  focus() { this.focused=true;if(this.ownerDocument)this.ownerDocument.activeElement=this; }
   querySelector(selector) { return this.querySelectorAll(selector)[0]??null; }
   querySelectorAll(selector) { const nodes=this.children.flatMap(c=>[c,...c.querySelectorAll('*')]);if(selector==='*')return nodes;const action=selector.match(/^\[data-action="(.*)"\]$/)?.[1];return nodes.filter(c=>action?c.dataset.action===action:c.tagName.toLowerCase()===selector); }
 }
 
-export async function loadLibrary({entry='prompt_library.js', fetchApi, autoLifecycle=true}={}) {
+export async function loadLibrary({entry='prompt_library.js', fetchApi, autoLifecycle=true, locale='zh'}={}) {
   const world = {library:fixture(), requests:[], extensions:[], alerts:[]};
   const window = new EventTarget();
-  const document = {head:new Element('head'),body:new Element('body'),createElement:tag=>new Element(tag)};
-  const app = {rootGraph:{}, graph:null, registerExtension:e=>world.extensions.push(e)};
+  const document = {head:new Element('head'),body:new Element('body'),activeElement:null};
+  document.createElement=tag=>{const node=new Element(tag);node.ownerDocument=document;return node;};
+  const app = {rootGraph:{}, graph:null,ui:{settings:localeSettings(locale)}, registerExtension:e=>world.extensions.push(e)};
   const dialogs=new Map(),mounts=[],unmounts=[];
   world.host={
     flushMounts(){for(const mount of mounts.splice(0))mount();},
@@ -40,7 +42,7 @@ export async function loadLibrary({entry='prompt_library.js', fetchApi, autoLife
       dialog.closed=true;
       dialog.spec.dialogComponentProps.onRemoved?.();
       unmounts.push(()=>{
-        if(dialog.mounted){dialog.spec.component.beforeUnmount?.call(dialog.instance);dialog.spec.component.unmounted?.call(dialog.instance);}
+        if(dialog.mounted){dialog.spec.headerComponent?.beforeUnmount?.call(dialog.headerInstance);dialog.spec.component.beforeUnmount?.call(dialog.instance);dialog.spec.component.unmounted?.call(dialog.instance);}
         dialog.element.remove();
       });
       if(autoLifecycle)queueMicrotask(()=>world.host.flushUnmounts());
@@ -58,6 +60,7 @@ export async function loadLibrary({entry='prompt_library.js', fetchApi, autoLife
       if(dialog.closed)return;
       const anchor=new Element('#comment');dialog.element.append(anchor);document.body.append(dialog.element);
       dialog.instance={$el:anchor};dialog.mounted=true;spec.component.mounted.call(dialog.instance);
+      if(spec.headerComponent){const headerAnchor=new Element('#comment');dialog.element.append(headerAnchor);dialog.headerInstance={$el:headerAnchor};spec.headerComponent.mounted.call(dialog.headerInstance);}
     });
     if(autoLifecycle)queueMicrotask(()=>world.host.flushMounts());
     return {dialog,closeDialog:()=>{const current=dialogs.get(spec.key);if(current)world.host.remove(current);}};
@@ -82,16 +85,15 @@ export async function loadLibrary({entry='prompt_library.js', fetchApi, autoLife
   ]);
   async function load(name) {
     if(cache.has(name))return cache.get(name);
-    const source=await readFile(new URL('../../web/'+name,import.meta.url),'utf8');
-    const module=new vm.SourceTextModule(source,{context,identifier:name,initializeImportMeta:meta=>{meta.url='http://localhost/extensions/kit/'+name;}});
-    cache.set(name,module);
-    await module.link(specifier=> {
-      if(specifier.includes('/scripts/'))return globals.get(specifier.split('/').at(-1));
-      return load(specifier.replace('./',''));
-    });
-    return module;
+    const pending=readFile(new URL('../../web/'+name,import.meta.url),'utf8').then(source=>new vm.SourceTextModule(source,{context,identifier:name,initializeImportMeta:meta=>{meta.url='http://localhost/extensions/kit/'+name;}}));
+    cache.set(name,pending);
+    return pending;
   }
   const module=await load(entry);
+  await module.link(specifier=> {
+      if(specifier.includes('/scripts/'))return globals.get(specifier.split('/').at(-1));
+      return load(specifier.replace('./',''));
+  });
   await module.evaluate();
   world.app=app; world.api=api; world.window=window; world.document=document; world.module=module;
   world.extension=world.extensions[0];

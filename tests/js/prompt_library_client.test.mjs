@@ -2,6 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadLibrary,response} from './prompt_library_helpers.mjs';
 
+test('known API errors follow current locale while status, code and unknown diagnostics remain available',async()=>{
+  const world=await loadLibrary({entry:'prompt_library_client.js',locale:'en',fetchApi:async()=>response({error:{code:'invalid_request',message:'名称或标题不能为空'}},400)});
+  await assert.rejects(world.module.namespace.readLibrary(),error=>error.status===400&&error.code==='invalid_request'&&/cannot be empty/.test(error.message));
+  world.app.ui.settings.setLocale('zh');
+  await assert.rejects(world.module.namespace.readLibrary(),/名称或标题不能为空/);
+  world.api.fetchApi=async()=>response({error:{code:'custom_failure',message:'vendor detail 123'}},500);
+  await assert.rejects(world.module.namespace.readLibrary(),error=>error.status===500&&error.code==='custom_failure'&&error.message==='vendor detail 123');
+});
+
+test('unknown API diagnostics preserve literal placeholders and object-property names',async()=>{
+  for(const message of ['vendor detail {status}','constructor']){
+    const world=await loadLibrary({entry:'prompt_library_client.js',locale:'en',fetchApi:async()=>response({error:{code:'custom_failure',message}},500)});
+    await assert.rejects(world.module.namespace.readLibrary(),error=>error.status===500&&error.code==='custom_failure'&&error.message===message);
+  }
+});
+
 test('client uses fixed same-origin paths and exact JSON',async()=>{
   const calls=[];
   const world=await loadLibrary({entry:'prompt_library_client.js',fetchApi:async(path,options)=>{calls.push({path,options});return response({revision:3,text:''});}});

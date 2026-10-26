@@ -9,28 +9,28 @@ import folder_paths
 
 def _active_loras(loras):
     if not isinstance(loras, str):
-        raise ValueError("LoRA 配置必须是 JSON 字符串")
+        raise ValueError("LoRA 配置必须是 JSON 字符串 / LoRA configuration must be a JSON string")
     try:
         config = json.loads(loras)
     except json.JSONDecodeError as error:
-        raise ValueError("LoRA 配置不是有效的 JSON") from error
+        raise ValueError("LoRA 配置不是有效的 JSON / LoRA configuration is not valid JSON") from error
     if not isinstance(config, dict) or type(config.get("schema_version")) is not int or config["schema_version"] != 1:
-        raise ValueError("LoRA 配置的 schema_version 必须是整数 1")
+        raise ValueError("LoRA 配置的 schema_version 必须是整数 1 / LoRA schema_version must be the integer 1")
     if not isinstance(config.get("items"), list):
-        raise ValueError("LoRA 配置的 items 必须是数组")
+        raise ValueError("LoRA 配置的 items 必须是数组 / LoRA items must be an array")
 
     active = []
     for index, item in enumerate(config["items"], start=1):
         if not isinstance(item, dict) or not isinstance(item.get("name"), str):
-            raise ValueError(f"第 {index} 项 LoRA 的 name 必须是字符串")
+            raise ValueError(f"第 {index} 项 LoRA 的 name 必须是字符串 / LoRA {index}: name must be a string")
         if type(item.get("enabled")) is not bool:
-            raise ValueError(f"第 {index} 项 LoRA 的 enabled 必须是 boolean")
+            raise ValueError(f"第 {index} 项 LoRA 的 enabled 必须是 boolean / LoRA {index}: enabled must be boolean")
         strength = item.get("strength")
         if type(strength) not in (int, float) or (isinstance(strength, float) and not math.isfinite(strength)):
-            raise ValueError(f"第 {index} 项 LoRA 的 strength 必须是有限数值")
+            raise ValueError(f"第 {index} 项 LoRA 的 strength 必须是有限数值 / LoRA {index}: strength must be finite")
         clip_strength = item.get("clip_strength", 0)
         if type(clip_strength) not in (int, float) or (isinstance(clip_strength, float) and not math.isfinite(clip_strength)):
-            raise ValueError(f"第 {index} 项 LoRA 的 clip_strength 必须是有限数值")
+            raise ValueError(f"第 {index} 项 LoRA 的 clip_strength 必须是有限数值 / LoRA {index}: clip_strength must be finite")
         if item["enabled"] and (strength != 0 or clip_strength != 0):
             active.append((item["name"], strength, clip_strength))
 
@@ -40,7 +40,7 @@ def _active_loras(loras):
     resolved = []
     for name, strength, clip_strength in active:
         if name not in available:
-            raise ValueError(f"LoRA 文件不在当前可用列表中：{name}")
+            raise ValueError(f"LoRA 文件不在当前可用列表中：{name} / LoRA file is not in the available list: {name}")
         resolved.append((folder_paths.get_full_path_or_raise("loras", name), strength, clip_strength))
     return resolved
 
@@ -80,7 +80,7 @@ class EnhanceKitLoraManager:
         """
         active = _active_loras(loras)
         if clip is None and any(clip_strength != 0 for _, _, clip_strength in active):
-            raise ValueError("使用非零 CLIP 强度时请接入 CLIP")
+            raise ValueError("使用非零 CLIP 强度时请接入 CLIP / Connect CLIP when using a nonzero CLIP strength")
         loaded = {}
         for path, strength, clip_strength in active:
             if path not in loaded:

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
+import { localeSettings } from './settings_helpers.mjs';
 
 class Element {
   constructor(tag, document) {
@@ -48,7 +49,7 @@ export function event(type, extra = {}) {
     stopPropagation() { this.stopped = true; }, preventDefault() { this.defaultPrevented = true; }, ...extra };
 }
 
-export async function loadLoraManager(files = ['a.safetensors', 'sub/b.safetensors']) {
+export async function loadLoraManager(files = ['a.safetensors', 'sub/b.safetensors'], { locale = 'zh' } = {}) {
   const world = { extensions: [], removals: 0, changes: [], registry: new Set(), widgetValues: new Map(), hosts: new Map(), nextNodeId: 1 };
   const document = { activeElement: null };
   document.createElement = tag => new Element(tag, document);
@@ -62,14 +63,20 @@ export async function loadLoraManager(files = ['a.safetensors', 'sub/b.safetenso
   graph.rootGraph = graph;
   const capture = phase => world.changes.push({ phase, value: world.currentNode?.widgets.find(widget => widget.name === 'loras')?.value });
   world.canvas = { emitBeforeChange() { capture('before'); }, emitAfterChange() { capture('after'); } };
-  const app = { graph, rootGraph: graph, registerExtension(extension) { world.extensions.push(extension); } };
+  const app = { graph, rootGraph: graph, ui: { settings: localeSettings(locale) }, registerExtension(extension) { world.extensions.push(extension); } };
   const context = vm.createContext({ console, document, URL, setTimeout, clearTimeout });
   let source;
   try { source = await readFile(new URL('../../web/lora_manager.js', import.meta.url), 'utf8'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; source = ''; }
   const appModule = new vm.SyntheticModule(['app'], function () { this.setExport('app', app); }, { context });
   const module = new vm.SourceTextModule(source, { context, initializeImportMeta(meta) { meta.url = 'http://localhost/extensions/kit/lora_manager.js'; } });
-  await module.link(specifier => { assert.equal(specifier, '../../scripts/app.js'); return appModule; });
+  await module.link(async specifier => {
+    if (specifier === '../../scripts/app.js') return appModule;
+    assert.equal(specifier, './i18n.js');
+    const dependency = new vm.SourceTextModule(await readFile(new URL('../../web/i18n.js', import.meta.url), 'utf8'), {context});
+    await dependency.link(name => { assert.equal(name, '../../scripts/app.js'); return appModule; });
+    return dependency;
+  });
   await module.evaluate();
   world.extension = world.extensions.find(extension => extension.name === 'EnhanceKit.LoraManager');
   assert.ok(world.extension, 'LoRA Manager extension must register its real node lifecycle');
