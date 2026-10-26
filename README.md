@@ -6,11 +6,19 @@
 
 ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示词库**和**菜单栏资源监控**。可以在一个节点中组合多项 LoRA、在多个工作流中维护常用提示词，以及查看主机资源状态。扩展不附带模型。
 
+### 工作流示例
+
+![提示词库和 LoRA 管理器接入 ComfyUI 工作流](assets/workflow-overview.jpg)
+
+将提示词库连接到 CLIP 文本编码节点，并通过 LoRA 管理器向采样器和文本编码节点提供模型与 CLIP。图中文件名和提示词仅作示例，使用时需自行准备兼容的模型和 LoRA。
+
 ### 功能
 
 #### LoRA 管理器
 
 在节点搜索中查找 **LoRA 管理器（EnhanceKit）**，或在 `EnhanceKit → Model` 分类添加节点。
+
+![LoRA 管理器：文件选择、启用开关、模型强度、CLIP 强度和排序](assets/lora-manager.jpg)
 
 1. 将加载器的 `MODEL` 输出连接到节点的 `model` 输入，再将节点的 `model` 输出连接到采样器。
 2. 点击 **添加 LoRA**，选择文件并分别设置该项模型强度和 CLIP 强度，默认为 `1`、`0`；可以继续添加其他 LoRA，也可以重复选择同一文件。
@@ -31,9 +39,13 @@ ComfyUI 的轻量实用工具扩展，提供**LoRA 管理器**、**分类提示�
 
 在节点搜索中查找 **提示词库（EnhanceKit）**，或在 `EnhanceKit → Prompt` 分类添加节点。
 
+![提示词库节点：选择分类和标题，预览提示词正文](assets/prompt-library-node.jpg)
+
 1. 点击节点上的 **管理提示词库**，新增分类。
 2. 新建提示词，填写标题和正文并保存；分类可按模型、任务或个人习惯划分。
 3. 回到节点，选择分类和提示词标题，将 `prompt` 输出连接到接受 `STRING` 的文本输入，例如 CLIP 文本编码节点的文本输入。
+
+![提示词库管理窗口：分类、提示词列表和正文编辑](assets/prompt-library-manager.jpg)
 
 节点使用官方下拉框、只读正文预览和按钮。同一 ComfyUI 用户的工作流共享提示词库；不同用户配置各自维护。分类名在库内唯一，标题在分类内唯一，不同分类可使用同名标题。
 
@@ -49,6 +61,8 @@ API 调用方应先向 `/enhance-kit/prompt-library/resolve` POST `{"prompt_id":
 #### 菜单栏资源监控
 
 资源条以紧凑的彩色卡片显示实时读数：
+
+![资源状态栏：CPU、内存、GPU、显存占用和 GPU 温度](assets/resource-monitor.png)
 
 | 指标 | 显示内容 |
 | --- | --- |
@@ -161,11 +175,19 @@ git pull --ff-only
 
 A lightweight utility extension for ComfyUI with a **LoRA manager**, a **categorized prompt library**, and **menu bar resource monitoring**. Combine multiple LoRAs in one node, maintain reusable prompts across workflows, and monitor host resources. No models are bundled with the extension.
 
+### Workflow example
+
+![Prompt library and LoRA manager connected in a ComfyUI workflow](assets/workflow-overview.jpg)
+
+Connect the prompt library to a CLIP text encoding node, and route the model and CLIP through the LoRA manager to the sampler and text encoding nodes. File names and prompts are illustrative; supply your own compatible models and LoRAs.
+
 ### Features
 
 #### LoRA manager
 
 Search for **LoRA 管理器（EnhanceKit）** (LoRA Manager), or add the node from `EnhanceKit → Model`.
+
+![LoRA manager with file selection, enable toggles, model and CLIP strengths, and ordering controls](assets/lora-manager.jpg)
 
 1. Connect the loader's `MODEL` output to the node's `model` input, then connect its `model` output to your sampler.
 2. Click **添加 LoRA** (Add LoRA), select a file, and set its model and CLIP strengths. The defaults are `1` and `0`. Add more entries as needed; the same file can be selected multiple times.
@@ -186,9 +208,13 @@ Ordinary LoRAs add fixed weight deltas, so changing their order usually does not
 
 Search for **提示词库（EnhanceKit）** (Prompt Library), or add the node from `EnhanceKit → Prompt`.
 
+![Prompt library node with category and title selection and a read-only text preview](assets/prompt-library-node.jpg)
+
 1. Click **管理提示词库** (Manage Prompt Library) and create a category.
 2. Create a prompt, enter its title and text, and save it. Organize categories by model, task, or your own preferences.
 3. Select a category and prompt title in the node. Connect its `prompt` output to a text input that accepts `STRING`, such as the text input of a CLIP text encoding node.
+
+![Prompt library manager with categories, prompt titles, and a text editor](assets/prompt-library-manager.jpg)
 
 The node uses standard dropdowns, a read-only text preview, and buttons. Workflows belonging to the same ComfyUI user share a prompt library; separate user profiles maintain separate libraries. Category names are unique within a library, and prompt titles are unique within a category. Different categories may use the same title.
 
@@ -204,6 +230,8 @@ API clients should first POST `{"prompt_id":"entry-id"}` to `/enhance-kit/prompt
 #### Menu bar resource monitoring
 
 Compact colored cards display live resource readings:
+
+![Resource monitor showing CPU, RAM, GPU, VRAM usage, and GPU temperature](assets/resource-monitor.png)
 
 | Metric | Display |
 | --- | --- |
